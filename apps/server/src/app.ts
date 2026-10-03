@@ -5,26 +5,35 @@ import { healthRoutes } from "./routes/health.routes.js"
 import { objectsRoutes } from "./routes/objects.routes.js"
 import { bucketsRoutes } from "./routes/buckets.routes.js"
 import type { S3Service } from "./services/s3.service.js"
+import { createAuth } from "./auth/http.js"
+import type { readEnv } from "./config/env.js"
 
-export function createApp(s3: S3Service) {
+export function createApp(
+  s3: S3Service,
+  config: ReturnType<typeof readEnv>["auth"],
+  now = Date.now
+) {
   const app = express()
+  const auth = createAuth(config, now)
   app.disable("x-powered-by")
-  // I require JSON for mutations and reject cross-site browser requests so an
-  // unrelated website cannot trigger deletion through the server credentials.
-  // I do not enable CORS; access control still belongs to deployment infrastructure.
   app.use("/api", (request, response, next) => {
     response.setHeader("Cache-Control", "no-store")
-    if (
-      request.method === "DELETE" &&
-      (!request.is("application/json") || request.get("sec-fetch-site") === "cross-site")
-    ) {
-      response.status(403).json({ error: "A same-site JSON request is required" })
-      return
-    }
+    if (request.method === "DELETE") return auth.mutation(request, response, next)
     next()
   })
+  app.use(
+    "/api/auth",
+    (request, response, next) => {
+      if (request.method === "POST") return auth.mutation(request, response, next)
+      next()
+    },
+    express.json({ limit: "4kb" })
+  )
   app.use(express.json({ limit: "256kb" }))
   app.use("/api", healthRoutes)
+  app.use("/api/auth", auth.routes)
+  // I protect every subsequent API router before it can invoke object storage.
+  app.use("/api", auth.requireSession)
   app.use("/api/buckets", bucketsRoutes(s3))
   app.use("/api/buckets", objectsRoutes(s3))
   app.use("/api", (_request, response) => {

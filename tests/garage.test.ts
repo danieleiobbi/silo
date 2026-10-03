@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { createS3Service } from "../apps/server/src/services/s3.service.ts"
 import { readEnv } from "../apps/server/src/config/env.ts"
+import { testAuth, login } from "./auth-helper.ts"
 
 // I use only the explicitly prepared fixture bucket, never an arbitrary user bucket.
 test(
@@ -35,18 +36,21 @@ test(
     const details = await service.details("silo-fixture", "pages/file-000.txt")
     assert.equal(details.contentType, "text/plain")
     assert.equal(details.metadata.source, "silo-test")
-    const server = createApp(service).listen(0, "127.0.0.1")
+    const server = createApp(service, testAuth).listen(0, "127.0.0.1")
     await new Promise<void>(resolve => server.once("listening", resolve))
     try {
       const address = server.address() as { port: number }
+      const cookie = await login(`http://127.0.0.1:${address.port}`)
       const response = await fetch(
-        `http://127.0.0.1:${address.port}/api/buckets/silo-fixture/download?key=pages%2Ffile-000.txt`
+        `http://127.0.0.1:${address.port}/api/buckets/silo-fixture/download?key=pages%2Ffile-000.txt`,
+        { headers: { Cookie: cookie } }
       )
       assert.equal(response.status, 200)
       assert.match(response.headers.get("content-disposition")!, /attachment;.*file-000.txt/)
       assert.equal(await response.text(), "fixture 0")
       const missing = await fetch(
-        `http://127.0.0.1:${address.port}/api/buckets/silo-fixture/download?key=absent`
+        `http://127.0.0.1:${address.port}/api/buckets/silo-fixture/download?key=absent`,
+        { headers: { Cookie: cookie } }
       )
       assert.equal(missing.status, 404)
     } finally {

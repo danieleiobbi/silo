@@ -21,9 +21,9 @@ responsible for creating objects and managing their lifecycle.
 
 ## Before running Silo
 
-Silo has **no login or built-in user management**. Anyone who can reach the application can use the
-configured S3 credentials through its interface, including deletion when the key permits it. Deploy
-it behind your private network, VPN, firewall or authenticated reverse proxy.
+Silo requires one configured administrator account for every storage operation. Shared credentials
+grant the same privileges to everyone using them; S3 permissions remain the final authorization
+boundary. Production browser access requires HTTPS, including on a private network or VPN.
 
 You need an existing Garage deployment and an S3 key with the permissions you intend to expose. Silo
 does not discover permissions in advance: it attempts each operation and reports the storage
@@ -37,17 +37,22 @@ and excluded from the Docker build context.
 
 ```sh
 cp .env.example .env
+chmod 600 .env
+npm ci
+npm run --silent auth:hash-password
 ```
 
-Edit `.env` to set your endpoint, region, access key and secret key, then run:
+The generator requests the password twice without displaying it. Copy the hash into
+`SILO_ADMIN_PASSWORD_HASH`, set `SILO_ADMIN_USERNAME` and `SILO_PUBLIC_ORIGIN`, and configure your
+endpoint, region, access key and secret key in `.env`, then run:
 
 ```sh
 docker compose up -d --build
 ```
 
-Open <http://localhost:3000>. The supplied Compose file binds the application to loopback by
-default. If you need LAN access, deliberately change the port binding and provide the access
-controls described above. No Silo volume or database is required.
+For local verification, set `SILO_PUBLIC_ORIGIN=http://localhost:3000` and open that exact address.
+Keep the supplied loopback binding for a production host HTTPS proxy. Do not publish the backend
+HTTP port to the LAN. No Silo volume or database is required.
 
 The endpoint must be reachable **from inside the Silo container**:
 
@@ -99,6 +104,10 @@ process.
 
 ## Local development
 
+Set `SILO_PUBLIC_ORIGIN` to the exact Vite origin, normally `http://localhost:5173`. Local HTTP is
+allowed only for literal `localhost`, `127.0.0.1` or `[::1]` and still requires login. When serving
+compiled assets directly, change the origin to the Express browser address.
+
 Use Node.js 22.12 or later in the Node 22 line, and npm. After `npm ci`, prepare `.env` as above,
 but use an endpoint reachable from your host, for example `http://127.0.0.1:3900`.
 
@@ -127,6 +136,60 @@ node --env-file=.env apps/server/dist/index.js
 
 `npm start` also runs the compiled server when variables are already exported. Build first: Express
 serves `apps/web/dist`, not the frontend source files.
+
+## Administrator configuration and HTTPS
+
+`SILO_ADMIN_USERNAME` is required, case-sensitive, 1–128 characters, without surrounding whitespace
+or control characters. `SILO_ADMIN_PASSWORD_HASH` must be the canonical scrypt hash produced by the
+generator. `SILO_PUBLIC_ORIGIN` is the required browser origin, including scheme and port, without
+credentials, query, fragment or a path beyond `/`. Invalid settings prevent startup. Keep all three
+server-only; never use `VITE_*` or browser storage for them.
+
+Passwords contain 15–128 Unicode code points and at most 512 UTF-8 bytes. Spaces are preserved. The
+generator rejects non-interactive input and command-line arguments. The production image provides an
+equivalent command without development dependencies:
+
+```sh
+docker build -t silo .
+docker run --rm -it --entrypoint node silo apps/server/dist/auth/hash-password.js
+```
+
+For rotation or recovery, generate a new hash, update the protected `.env` and run
+`docker compose up -d --force-recreate silo`. A plain restart does not reload Compose environment
+values. Process recreation invalidates sessions. There is no recovery endpoint or default account.
+
+For a host nginx proxy at `https://192.168.1.20`, retain Express on `127.0.0.1:3000`, set
+`SILO_PUBLIC_ORIGIN=https://192.168.1.20`, and use a configuration such as:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name 192.168.1.20;
+    ssl_certificate /etc/nginx/tls/silo.crt;
+    ssl_certificate_key /etc/nginx/tls/silo.key;
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_buffering off;
+    }
+}
+```
+
+The operator supplies a certificate with the actual IP in its SAN, protects its private key and
+installs the issuing CA in every client's trust store. Verify HTTPS without certificate warnings and
+confirm from a LAN client that the backend IP/port is unreachable. A container proxy instead uses an
+unpublished Express port on a private container network. Silo does not enable trust proxy or rely on
+forwarded headers for origin validation and cookie security.
+
+Sessions expire after 30 minutes idle or eight hours total. HTTPS uses a host-only Secure, HttpOnly,
+SameSite=Lax cookie; local HTTP uses a separate development cookie. Up to 100 sessions remain in
+memory. Logout/expiry clear data and dialogs; login preserves the bucket/prefix URL and never
+replays deletion. Already authorized downloads may finish.
+
+Login allows ten verifications in a rolling five-minute window and one scrypt operation at a time,
+requiring approximately 128 MiB working memory. A client can temporarily exhaust this global budget;
+existing sessions and health remain usable. Limits reset on restart. Multiple replicas are outside
+this design.
 
 ## Using the object browser
 
@@ -219,6 +282,6 @@ streaming starts is interrupted rather than completed with misleading content.
 - `apps/web/src/components/`: details, confirmation, theme, notifications and rendering recovery.
 - `tests/`: focused logic/HTTP tests and explicit Garage/container integration checks.
 
-No database, server-side application persistence, integrated authentication, analytics or telemetry
-is included. Broad S3-provider compatibility is not a V1 goal. The project license remains to be
-decided before public release.
+No database, persistent sessions, user management, analytics or telemetry is included. Broad
+S3-provider compatibility is not a V1 goal. The project license remains to be decided before public
+release.

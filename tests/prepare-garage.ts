@@ -5,6 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { setTimeout } from "node:timers/promises"
 import { S3Client, PutObjectCommand, ListBucketsCommand } from "@aws-sdk/client-s3"
+import { hashPassword } from "../apps/server/src/auth/password.ts"
 
 // I create a dedicated disposable Garage, not a connection to an existing deployment.
 // I refuse an existing container name instead of resetting someone else's test data.
@@ -101,9 +102,11 @@ api_bind_addr = "[::]:3900"
     )
   }
   // I keep fixture credentials in an ignored, owner-readable file, never in console output.
+  const password = randomBytes(32).toString("base64url")
+  const passwordHash = await hashPassword(password)
   writeFileSync(
     ".env.silo-test",
-    `S3_ENDPOINT=http://127.0.0.1:3909\nS3_REGION=garage\nS3_ACCESS_KEY_ID=${accessKeyId}\nS3_SECRET_ACCESS_KEY=${secretAccessKey}\nPORT=3000\n`,
+    `S3_ENDPOINT=http://127.0.0.1:3909\nS3_REGION=garage\nS3_ACCESS_KEY_ID=${accessKeyId}\nS3_SECRET_ACCESS_KEY=${secretAccessKey}\nPORT=3000\nSILO_ADMIN_USERNAME=fixture-admin\nSILO_ADMIN_PASSWORD_HASH=${passwordHash}\nSILO_PUBLIC_ORIGIN=http://127.0.0.1:3301\nSILO_TEST_PASSWORD=${password}\n`,
     { mode: 0o600 }
   )
   console.info("Garage fixtures ready on 127.0.0.1:3909; credentials saved to .env.silo-test")

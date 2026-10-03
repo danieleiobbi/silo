@@ -10,6 +10,17 @@ test(
   async () => {
     const base = process.env.SILO_TEST_URL!
     const config = readEnv()
+    assert.equal((await fetch(base + "/api/buckets")).status, 401)
+    const authenticated = await fetch(base + "/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: config.auth.publicOrigin },
+      body: JSON.stringify({
+        username: config.auth.username,
+        password: process.env.SILO_TEST_PASSWORD
+      })
+    })
+    assert.equal(authenticated.status, 200)
+    const cookie = authenticated.headers.get("set-cookie")!.split(";")[0]
     const client = new S3Client({ ...config, forcePathStyle: true })
     const key = "production/../é #+%/file.txt"
     await client.send(
@@ -21,11 +32,15 @@ test(
         Metadata: { source: "production-check" }
       })
     )
-    const get = (path: string) => fetch(base + path)
+    const get = (path: string) => fetch(base + path, { headers: { Cookie: cookie } })
     const remove = (path: string, body: unknown) =>
       fetch(base + path, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: cookie,
+          Origin: config.auth.publicOrigin
+        },
         body: JSON.stringify(body)
       })
     assert.deepEqual(await (await get("/api/health")).json(), { status: "ok" })
@@ -71,7 +86,12 @@ test(
     assert.match(html, /<div id="root">/)
     const script = html.match(/src="([^"]+\.js)"/)![1]
     const javascript = await (await get(script)).text()
-    for (const secret of [config.credentials.accessKeyId, config.credentials.secretAccessKey])
+    for (const secret of [
+      config.credentials.accessKeyId,
+      config.credentials.secretAccessKey,
+      process.env.SILO_ADMIN_PASSWORD_HASH!,
+      process.env.SILO_TEST_PASSWORD!
+    ])
       assert.ok(!javascript.includes(secret))
   }
 )

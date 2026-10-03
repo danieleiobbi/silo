@@ -8,6 +8,7 @@ import {
 } from "@aws-sdk/client-s3"
 import { createS3Service } from "../apps/server/src/services/s3.service.ts"
 import { createApp } from "../apps/server/src/app.ts"
+import { testAuth, login } from "./auth-helper.ts"
 
 const config = {
   endpoint: "http://localhost",
@@ -81,13 +82,19 @@ test("HTTP validates destructive inputs before S3 and sanitizes errors", async (
   service.deleteBucket = async () => {
     throw Object.assign(new Error("private detail"), { name: "BucketNotEmpty" })
   }
-  const server = createApp(service).listen(0, "127.0.0.1")
+  const server = createApp(service, testAuth).listen(0, "127.0.0.1")
   await new Promise<void>(resolve => server.once("listening", resolve))
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/buckets/bucket`
+  const cookie = await login(new URL(base).origin)
   const remove = (url: string, body: unknown, headers: Record<string, string> = {}) =>
     fetch(base + url, {
       method: "DELETE",
-      headers: { "Content-Type": "application/json", ...headers },
+      headers: {
+        "Content-Type": "application/json",
+        Origin: testAuth.publicOrigin,
+        Cookie: cookie,
+        ...headers
+      },
       body: JSON.stringify(body)
     })
   try {
@@ -116,7 +123,7 @@ test("HTTP validates destructive inputs before S3 and sanitizes errors", async (
     const denied = await remove("/objects", { keys: ["a"] })
     assert.equal(denied.status, 403)
     assert.doesNotMatch(await denied.text(), /secret/)
-    const short = await fetch(base + "/search?query=ab")
+    const short = await fetch(base + "/search?query=ab", { headers: { Cookie: cookie } })
     assert.equal(short.status, 400)
   } finally {
     server.close()

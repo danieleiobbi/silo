@@ -17,6 +17,10 @@ seeds 61 paginated objects, nested prefixes, special-character keys and a folder
 are saved to the ignored `.env.silo-test` file, not printed. Test data lives in the disposable
 container; there are no host-mounted data volumes.
 
+Fresh fixtures generate a random administrator password and hash in the protected ignored
+`.env.silo-test`. Never print this file or copy its secrets into verification records. Existing
+fixtures created before authentication need generated authentication settings before reuse.
+
 The script refuses an existing container with that name. This prevents an implicit reset. For
 another clean run, explicitly remove your previous fixture container first:
 
@@ -53,7 +57,7 @@ docker run -d --name silo-production-check \
   silo:verification
 ```
 
-If the network already exists, reuse it; do not create a second one. Open <http://localhost:3301>
+If the network already exists, reuse it; do not create a second one. Open <http://127.0.0.1:3301>
 for manual UI checks. Then run the complete suite:
 
 ```sh
@@ -85,6 +89,11 @@ Use the production container and only these disposable fixtures:
 - Check light/dark mode, keyboard operation and 320/800/1280-pixel layouts.
 
 No browser E2E automation or browser-testing dependency is installed.
+
+Also verify authentication deep links, exact prefix preservation, expiry, logout, password-manager
+fields, network failures and late responses. Production needs separate evidence through an HTTPS
+proxy, a trusted IP certificate, Secure cookies and an unreachable direct backend LAN port. Loopback
+HTTP tests do not establish this deployment boundary.
 
 ## Clean up
 

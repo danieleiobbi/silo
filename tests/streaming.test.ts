@@ -3,6 +3,7 @@ import test from "node:test"
 import { Readable } from "node:stream"
 import { createApp } from "../apps/server/src/app.ts"
 import { createS3Service } from "../apps/server/src/services/s3.service.ts"
+import { testAuth, login } from "./auth-helper.ts"
 
 test(
   "download delivers a chunk before S3 finishes and preserves UTF-8 filename",
@@ -17,11 +18,13 @@ test(
     const source = new Readable({ read() {} })
     service.download = async () =>
       ({ Body: source, $metadata: {} }) as Awaited<ReturnType<typeof service.download>>
-    const server = createApp(service).listen(0, "127.0.0.1")
+    const server = createApp(service, testAuth).listen(0, "127.0.0.1")
     await new Promise<void>(resolve => server.once("listening", resolve))
     try {
+      const cookie = await login(`http://127.0.0.1:${(server.address() as { port: number }).port}`)
       const pending = fetch(
-        `http://127.0.0.1:${(server.address() as { port: number }).port}/api/buckets/bucket/download?${new URLSearchParams({ key: "folder/é #%.txt" })}`
+        `http://127.0.0.1:${(server.address() as { port: number }).port}/api/buckets/bucket/download?${new URLSearchParams({ key: "folder/é #%.txt" })}`,
+        { headers: { Cookie: cookie } }
       )
       source.push("first")
       const response = await pending

@@ -1,13 +1,47 @@
+import { parsePasswordHash } from "../auth/password.js"
+
 export function readEnv(env = process.env) {
   for (const name of [
     "S3_ENDPOINT",
     "S3_REGION",
     "S3_ACCESS_KEY_ID",
     "S3_SECRET_ACCESS_KEY",
-    "PORT"
+    "PORT",
+    "SILO_ADMIN_USERNAME",
+    "SILO_ADMIN_PASSWORD_HASH",
+    "SILO_PUBLIC_ORIGIN"
   ]) {
     if (!env[name]?.trim()) throw new Error(`${name} is required`)
   }
+  const username = env.SILO_ADMIN_USERNAME!
+  if (
+    Array.from(username).length > 128 ||
+    username !== username.trim() ||
+    Array.from(username).some(character => {
+      const code = character.codePointAt(0)!
+      return code < 32 || (code >= 127 && code <= 159)
+    })
+  )
+    throw new Error("SILO_ADMIN_USERNAME is invalid")
+  const passwordHash = parsePasswordHash(env.SILO_ADMIN_PASSWORD_HASH!)
+  let publicOrigin: URL
+  try {
+    publicOrigin = new URL(env.SILO_PUBLIC_ORIGIN!)
+  } catch {
+    throw new Error("SILO_PUBLIC_ORIGIN is invalid")
+  }
+  if (
+    !["http:", "https:"].includes(publicOrigin.protocol) ||
+    publicOrigin.username ||
+    publicOrigin.password ||
+    publicOrigin.search ||
+    publicOrigin.hash ||
+    publicOrigin.pathname !== "/" ||
+    ![publicOrigin.origin, `${publicOrigin.origin}/`].includes(env.SILO_PUBLIC_ORIGIN!) ||
+    (publicOrigin.protocol === "http:" &&
+      !["localhost", "127.0.0.1", "[::1]"].includes(publicOrigin.hostname))
+  )
+    throw new Error("SILO_PUBLIC_ORIGIN is invalid")
   let endpoint: URL
   try {
     endpoint = new URL(env.S3_ENDPOINT!)
@@ -30,6 +64,7 @@ export function readEnv(env = process.env) {
   // I do not fall back to local AWS profiles or expose this configuration to the browser.
   return {
     port,
+    auth: { username, passwordHash, publicOrigin: publicOrigin.origin },
     endpoint: endpoint.href,
     region: env.S3_REGION!,
     credentials: { accessKeyId: env.S3_ACCESS_KEY_ID!, secretAccessKey: env.S3_SECRET_ACCESS_KEY! }
