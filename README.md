@@ -4,9 +4,6 @@ Silo is a small web console for inspecting objects stored in Garage. It uses sta
 one configured endpoint and server-side credentials. React runs in the browser; Express serves both
 the API and the compiled interface from one Node process.
 
-The authoritative V1 scope is [SILO_SPEC.md](docs/SILO_SPEC.md). Implementation and verification
-records are in [IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
-
 ## What you can do
 
 - List accessible buckets and their creation dates, when storage returns them.
@@ -224,4 +221,4 @@ streaming starts is interrupted rather than completed with misleading content.
 
 No database, server-side application persistence, integrated authentication, analytics or telemetry
 is included. Broad S3-provider compatibility is not a V1 goal. The project license remains to be
-decided before public release, as stated in the specification.
+decided before public release.
