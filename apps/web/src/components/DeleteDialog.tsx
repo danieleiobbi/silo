@@ -37,7 +37,7 @@ export function DeleteDialog({
         event.preventDefault()
         if (!busy) onClose()
       }}
-      className='w-[min(92vw,480px)] rounded-lg border border-[var(--border)] p-6'
+      className='delete-dialog'
     >
       <h2 id='delete-title' className='text-lg font-semibold'>
         {title}
@@ -92,7 +92,7 @@ export function DeleteDialog({
             Cancel
           </button>
           <button
-            className='text-[var(--destructive)]'
+            className='button-danger'
             disabled={busy || (bucketName !== undefined && confirmation !== bucketName)}
           >
             {busy ? "Deleting…" : "Delete"}

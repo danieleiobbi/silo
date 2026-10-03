@@ -3,7 +3,7 @@ import { DeleteDialog } from "../components/DeleteDialog"
 import { Details } from "../components/Details"
 import { useEffect, useState } from "react"
 import { Link, useParams, useSearchParams } from "react-router-dom"
-import { Folder, File } from "lucide-react"
+import { Folder, File, RefreshCw, Search, Trash2, ArrowLeft, ArrowRight } from "lucide-react"
 import { api } from "../lib/api"
 import { bucketUrl, objectsUrl } from "../lib/location"
 
@@ -81,12 +81,10 @@ function Objects({ bucket, prefix }: { bucket: string; prefix: string }) {
   const segments = prefix.split("/")
   if (segments.at(-1) === "") segments.pop()
   return (
-    <main className='mx-auto max-w-[1500px] p-4 sm:p-8'>
-      <div
-        className={selected !== undefined ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]" : ""}
-      >
+    <main className='workspace'>
+      <div className={selected !== undefined ? "object-layout with-details" : "object-layout"}>
         <section className='min-w-0'>
-          <nav aria-label='Breadcrumb' className='mb-6 flex flex-wrap items-center gap-2 text-sm'>
+          <nav aria-label='Breadcrumb' className='breadcrumbs'>
             <Link to='/buckets'>Buckets</Link>
             <span>/</span>
             <Link to={bucketUrl(bucket)}>{bucket}</Link>
@@ -99,24 +97,29 @@ function Objects({ bucket, prefix }: { bucket: string; prefix: string }) {
               </span>
             ))}
           </nav>
-          <div className='mb-4 flex items-center justify-between gap-3'>
-            <h1 className='min-w-0 truncate text-xl font-semibold'>{segments.at(-1) || bucket}</h1>
-            <button onClick={reload}>Refresh</button>
+          <div className='page-heading'>
+            <div className='min-w-0'>
+              <span className='eyebrow'>{prefix ? "Prefix" : "Bucket"}</span>
+              <h1 className='truncate'>{segments.at(-1) || bucket}</h1>
+              <p>Browse objects and inspect their details.</p>
+            </div>
+            <button onClick={reload}>
+              <RefreshCw size={15} aria-hidden />
+              Refresh
+            </button>
           </div>
           {notice && <Toast message={notice} onClose={() => setNotice("")} />}
           {selectedKeys.length > 0 && (
-            <div className='mb-3 flex items-center gap-3 text-sm'>
+            <div className='selection-bar'>
               <span>{selectedKeys.length} selected on this page</span>
-              <button
-                className='text-[var(--destructive)]'
-                onClick={() => setDeleting(selectedKeys)}
-              >
+              <button className='button-danger-quiet' onClick={() => setDeleting(selectedKeys)}>
+                <Trash2 size={15} aria-hidden />
                 Delete selected
               </button>
             </div>
           )}
           <form
-            className='mb-4 flex flex-wrap gap-2'
+            className='search-toolbar'
             onSubmit={event => {
               event.preventDefault()
               if ([...input].length < 3) return
@@ -127,15 +130,19 @@ function Objects({ bucket, prefix }: { bucket: string; prefix: string }) {
             <label className='sr-only' htmlFor='search'>
               Search keys in this prefix
             </label>
-            <input
-              id='search'
-              autoComplete='off'
-              className='min-w-0 flex-1 rounded-md border border-[var(--border)] px-3 py-2 text-sm'
-              value={input}
-              onChange={event => setInput(event.target.value)}
-              placeholder='Search keys in this prefix (3+ characters)'
-            />
-            <button disabled={[...input].length < 3}>Search</button>
+            <div className='search-field'>
+              <Search size={17} aria-hidden />
+              <input
+                id='search'
+                autoComplete='off'
+                value={input}
+                onChange={event => setInput(event.target.value)}
+                placeholder='Search keys in this prefix (3+ characters)'
+              />
+            </div>
+            <button className='button-primary' disabled={[...input].length < 3}>
+              Search
+            </button>
             {query && (
               <button
                 type='button'
@@ -160,92 +167,101 @@ function Objects({ bucket, prefix }: { bucket: string; prefix: string }) {
             </p>
           )}
           {error ? (
-            <div role='alert'>
+            <div className='state-panel state-error' role='alert'>
               {error} <button onClick={reload}>Retry</button>
             </div>
           ) : !visible ? (
-            <p role='status'>Loading objects…</p>
+            <p className='state-panel' role='status'>
+              Loading objects…
+            </p>
           ) : (
             <>
               {!visible.prefixes.length && !visible.objects.length ? (
-                <p>{query ? "No matching keys in this prefix." : "No objects in this prefix."}</p>
+                <p className='state-panel'>
+                  {query ? "No matching keys in this prefix." : "No objects in this prefix."}
+                </p>
               ) : (
-                <table>
-                  <thead>
-                    <tr>
-                      <th className='w-10'>
-                        <input
-                          type='checkbox'
-                          aria-label='Select all objects on this page'
-                          disabled={!visible.objects.length}
-                          checked={
-                            visible.objects.length > 0 &&
-                            selectedKeys.length === visible.objects.length
-                          }
-                          onChange={event =>
-                            setChecked(
-                              event.target.checked ? visible.objects.map(item => item.key) : []
-                            )
-                          }
-                        />
-                      </th>
-                      <th>Name</th>
-                      <th className='hidden sm:table-cell'>Size</th>
-                      <th className='hidden md:table-cell'>Modified</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visible.prefixes.map(item => (
-                      <tr key={`prefix:${item}`}>
-                        <td />
-                        <td>
-                          <Link className='flex items-center gap-2' to={bucketUrl(bucket, item)}>
-                            <Folder size={16} aria-hidden />
-                            {item.slice(prefix.length)}
-                          </Link>
-                        </td>
-                        <td className='hidden sm:table-cell'>—</td>
-                        <td className='hidden md:table-cell'>—</td>
-                      </tr>
-                    ))}
-                    {visible.objects.map(item => (
-                      <tr key={item.key}>
-                        <td>
+                <div className='data-surface'>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th className='w-10'>
                           <input
                             type='checkbox'
-                            aria-label={`Select ${item.key}`}
-                            checked={selectedKeys.includes(item.key)}
+                            aria-label='Select all objects on this page'
+                            disabled={!visible.objects.length}
+                            checked={
+                              visible.objects.length > 0 &&
+                              selectedKeys.length === visible.objects.length
+                            }
                             onChange={event =>
                               setChecked(
-                                event.target.checked
-                                  ? [...selectedKeys, item.key]
-                                  : selectedKeys.filter(key => key !== item.key)
+                                event.target.checked ? visible.objects.map(item => item.key) : []
                               )
                             }
                           />
-                        </td>
-                        <td>
-                          <button
-                            className='flex max-w-full items-center gap-2 border-0 p-0 text-left'
-                            aria-pressed={selected === item.key}
-                            onClick={() => setSelected(item.key)}
-                          >
-                            <File size={16} aria-hidden />
-                            {item.key.slice(prefix.length) || "(folder marker)"}
-                          </button>
-                        </td>
-                        <td className='hidden sm:table-cell'>{item.size.toLocaleString()} B</td>
-                        <td className='hidden md:table-cell'>
-                          {item.modifiedAt ? new Date(item.modifiedAt).toLocaleString() : "—"}
-                        </td>
+                        </th>
+                        <th>Name</th>
+                        <th className='hidden sm:table-cell'>Size</th>
+                        <th className='hidden md:table-cell'>Modified</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {visible.prefixes.map(item => (
+                        <tr key={`prefix:${item}`}>
+                          <td />
+                          <td>
+                            <Link className='flex items-center gap-2' to={bucketUrl(bucket, item)}>
+                              <Folder size={16} aria-hidden />
+                              {item.slice(prefix.length)}
+                            </Link>
+                          </td>
+                          <td className='hidden sm:table-cell'>—</td>
+                          <td className='hidden md:table-cell'>—</td>
+                        </tr>
+                      ))}
+                      {visible.objects.map(item => (
+                        <tr
+                          key={item.key}
+                          data-selected={selected === item.key || selectedKeys.includes(item.key)}
+                        >
+                          <td>
+                            <input
+                              type='checkbox'
+                              aria-label={`Select ${item.key}`}
+                              checked={selectedKeys.includes(item.key)}
+                              onChange={event =>
+                                setChecked(
+                                  event.target.checked
+                                    ? [...selectedKeys, item.key]
+                                    : selectedKeys.filter(key => key !== item.key)
+                                )
+                              }
+                            />
+                          </td>
+                          <td>
+                            <button
+                              className='object-name'
+                              aria-pressed={selected === item.key}
+                              onClick={() => setSelected(item.key)}
+                            >
+                              <File size={16} aria-hidden />
+                              {item.key.slice(prefix.length) || "(folder marker)"}
+                            </button>
+                          </td>
+                          <td className='hidden sm:table-cell'>{item.size.toLocaleString()} B</td>
+                          <td className='hidden md:table-cell'>
+                            {item.modifiedAt ? new Date(item.modifiedAt).toLocaleString() : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </>
           )}
-          <footer className='mt-4 flex flex-wrap items-center justify-between gap-3 text-sm'>
+          <footer className='table-footer'>
             <label>
               Rows{" "}
               <select
@@ -279,6 +295,7 @@ function Objects({ bucket, prefix }: { bucket: string; prefix: string }) {
                   setListing(undefined)
                 }}
               >
+                <ArrowLeft size={14} aria-hidden />
                 Previous
               </button>
               <button
@@ -300,6 +317,7 @@ function Objects({ bucket, prefix }: { bucket: string; prefix: string }) {
                 }}
               >
                 Next
+                <ArrowRight size={14} aria-hidden />
               </button>
             </div>
           </footer>

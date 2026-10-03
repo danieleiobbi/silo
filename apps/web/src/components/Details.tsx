@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react"
 import { api } from "../lib/api"
 import { objectsUrl } from "../lib/location"
 import type { ObjectItem } from "../pages/Objects"
+import { Copy, Download, Trash2, X } from "lucide-react"
 
 type Detail = ObjectItem & {
   contentType?: string
@@ -56,13 +57,15 @@ export function Details({
           onClose()
         }
       }}
-      className='min-w-0 self-start border-t border-[var(--border)] pt-5 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0'
+      className='details-panel'
     >
-      <div className='mb-4 flex items-center justify-between gap-4'>
+      <div className='details-heading'>
         <h2 ref={heading} tabIndex={-1} className='text-lg font-semibold'>
           Object details
         </h2>
-        <button onClick={onClose}>Close</button>
+        <button className='button-quiet' onClick={onClose} aria-label='Close object details'>
+          <X size={18} aria-hidden />
+        </button>
       </div>
       {error ? (
         <p role='alert'>
@@ -101,7 +104,11 @@ export function Details({
               .map(([name, value]) => (
                 <div key={name}>
                   <dt className='text-[var(--muted)]'>{name}</dt>
-                  <dd className='mt-1 whitespace-pre-wrap break-all'>{value ?? "—"}</dd>
+                  <dd
+                    className={`mt-1 whitespace-pre-wrap break-all ${name === "Full key" || name === "ETag" ? "object-key" : ""}`}
+                  >
+                    {value ?? "—"}
+                  </dd>
                 </div>
               ))}
           </dl>
@@ -118,7 +125,7 @@ export function Details({
               ))}
             </dl>
           )}
-          <div className='mt-5 flex flex-wrap gap-2'>
+          <div className='details-actions'>
             <button
               onClick={async () => {
                 try {
@@ -147,15 +154,18 @@ export function Details({
                 }
               }}
             >
+              <Copy size={15} aria-hidden />
               Copy key
             </button>
-            <button onClick={onDelete} className='text-[var(--destructive)]'>
+            <button onClick={onDelete} className='button-danger-quiet'>
+              <Trash2 size={15} aria-hidden />
               Delete object
             </button>
             <a
-              className='rounded-md border border-[var(--border)] px-3 py-1.5'
+              className='button-primary download-button'
               href={`/api${objectsUrl(bucket, "download", { key: objectKey })}`}
             >
+              <Download size={15} aria-hidden />
               Download
             </a>
           </div>

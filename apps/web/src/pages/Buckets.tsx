@@ -2,6 +2,7 @@ import { DeleteDialog } from "../components/DeleteDialog"
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { api } from "../lib/api"
+import { ArrowUpRight, Database, RefreshCw, Trash2 } from "lucide-react"
 
 type Bucket = { name: string; createdAt?: string }
 export function Buckets() {
@@ -19,9 +20,13 @@ export function Buckets() {
     return () => abort.abort()
   }, [refresh])
   return (
-    <main className='mx-auto max-w-7xl p-6'>
-      <div className='mb-6 flex items-center justify-between'>
-        <h1 className='text-xl font-semibold'>Buckets</h1>
+    <main className='workspace buckets-workspace'>
+      <div className='page-heading'>
+        <div>
+          <span className='eyebrow'>Storage explorer</span>
+          <h1>Buckets</h1>
+          <p>Choose a bucket to explore its objects.</p>
+        </div>
         <button
           onClick={() => {
             setError("")
@@ -29,11 +34,12 @@ export function Buckets() {
             setRefresh(refresh + 1)
           }}
         >
+          <RefreshCw size={15} aria-hidden />
           Refresh
         </button>
       </div>
       {error ? (
-        <div role='alert'>
+        <div className='state-panel state-error' role='alert'>
           {error}{" "}
           <button
             onClick={() => {
@@ -45,41 +51,63 @@ export function Buckets() {
           </button>
         </div>
       ) : !buckets ? (
-        <p role='status'>Loading buckets…</p>
+        <p className='state-panel' role='status'>
+          Loading buckets…
+        </p>
       ) : !buckets.length ? (
-        <p>No accessible buckets.</p>
+        <div className='state-panel'>
+          <h2>No accessible buckets</h2>
+          <p>No buckets were returned by your storage connection.</p>
+        </div>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th className='hidden sm:table-cell'>Created</th>
-              <th>
-                <span className='sr-only'>Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {buckets.map(bucket => (
-              <tr key={bucket.name}>
-                <td>
-                  <Link to={`/buckets/${encodeURIComponent(bucket.name)}`}>{bucket.name}</Link>
-                </td>
-                <td className='hidden sm:table-cell'>
-                  {bucket.createdAt ? new Date(bucket.createdAt).toLocaleString() : "—"}
-                </td>
-                <td className='text-right'>
-                  <button
-                    onClick={() => setDeleting(bucket.name)}
-                    aria-label={`Delete bucket ${bucket.name}`}
-                  >
-                    Delete
-                  </button>
-                </td>
+        <div className='data-surface'>
+          <div className='surface-heading'>
+            <h2>Available buckets</h2>
+            <span className='count-badge'>{buckets.length}</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th className='hidden sm:table-cell'>Created</th>
+                <th>
+                  <span className='sr-only'>Actions</span>
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {buckets.map(bucket => (
+                <tr key={bucket.name}>
+                  <td>
+                    <Link
+                      className='bucket-link'
+                      to={`/buckets/${encodeURIComponent(bucket.name)}`}
+                    >
+                      <span className='bucket-symbol'>
+                        <Database size={19} aria-hidden />
+                      </span>
+                      <span>{bucket.name}</span>
+                      <ArrowUpRight className='row-arrow' size={16} aria-hidden />
+                    </Link>
+                  </td>
+                  <td className='hidden sm:table-cell'>
+                    {bucket.createdAt ? new Date(bucket.createdAt).toLocaleString() : "—"}
+                  </td>
+                  <td className='text-right'>
+                    <button
+                      className='button-danger-quiet'
+                      onClick={() => setDeleting(bucket.name)}
+                      aria-label={`Delete bucket ${bucket.name}`}
+                    >
+                      <Trash2 size={15} aria-hidden />
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {deleting !== undefined && (
         <DeleteDialog

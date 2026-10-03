@@ -4,6 +4,7 @@ import { ObjectsRoute } from "./pages/Objects"
 import { Buckets } from "./pages/Buckets"
 import { useEffect, useState } from "react"
 import { api, invalidateSessionRequests } from "./lib/api"
+import { ArrowRight, LogOut } from "lucide-react"
 
 export function App() {
   const [session, setSession] = useState<{ username: string } | null>(null)
@@ -87,16 +88,18 @@ export function App() {
   }
   return (
     <BrowserRouter>
-      <header className='flex h-16 items-center justify-between border-b border-[var(--border)] px-4 font-semibold tracking-tight sm:px-8'>
-        <a href='/buckets' className='text-lg'>
-          Silo
-          <span className='ml-3 text-xs font-normal tracking-normal text-[var(--muted)]'>
-            Object storage
+      <header className='app-header'>
+        <a href='/buckets' className='brand' aria-label='Silo home'>
+          <span className='brand-name'>
+            silo<span className='brand-dot'>.</span>
           </span>
+          <span className='brand-description'>Storage explorer</span>
         </a>
-        <div className='flex items-center gap-4'>
+        <div className='header-actions'>
+          {session && <span className='session-name'>{session.username}</span>}
           {session && (
-            <button type='button' onClick={logout} disabled={pending}>
+            <button className='button-quiet' type='button' onClick={logout} disabled={pending}>
+              <LogOut size={16} aria-hidden />
               Logout
             </button>
           )}
@@ -109,49 +112,104 @@ export function App() {
         </p>
       )}
       {checking ? (
-        <main className='p-8'>Checking session…</main>
+        <main className='session-loading' role='status'>
+          Checking session…
+        </main>
       ) : !session ? (
-        <main className='mx-auto max-w-sm px-4 py-16'>
-          <h1 className='mb-6 text-2xl font-semibold'>Sign in to Silo</h1>
-          <form onSubmit={submit} className='flex flex-col gap-4'>
-            <label className='flex flex-col gap-2'>
-              Username
-              <input
-                autoComplete='username'
-                required
-                value={username}
-                onChange={event => setUsername(event.target.value)}
-                disabled={pending}
-              />
-            </label>
-            <label className='flex flex-col gap-2'>
-              Password
-              <input
-                type='password'
-                autoComplete='current-password'
-                required
-                value={password}
-                onChange={event => setPassword(event.target.value)}
-                disabled={pending}
-              />
-            </label>
-            {error && <p role='alert'>{error}</p>}
-            <button type='submit' disabled={pending}>
-              {pending ? "Signing in…" : "Sign in"}
-            </button>
-            {error && (
-              <button
-                type='button'
-                onClick={() => {
-                  setChecking(true)
-                  setError("")
-                  setRetry(value => value + 1)
-                }}
-              >
-                Retry session check
-              </button>
-            )}
-          </form>
+        <main className='login-layout'>
+          <section className='login-intro' aria-label='About Silo'>
+            <div className='storage-atmosphere' aria-hidden='true'>
+              <svg className='storage-grid' viewBox='0 0 600 700' fill='none'>
+                <defs>
+                  <pattern id='storage-dots' width='30' height='30' patternUnits='userSpaceOnUse'>
+                    <circle cx='15' cy='15' r='1' fill='currentColor' />
+                  </pattern>
+                  <linearGradient id='storage-trace' x1='0' x2='1'>
+                    <stop stopColor='#94baff' stopOpacity='0' />
+                    <stop offset='1' stopColor='#94baff' />
+                  </linearGradient>
+                </defs>
+                <path fill='url(#storage-dots)' d='M0 0h600v700H0z' />
+                {[105, 225, 345, 465, 585].map((y, index) => (
+                  <g
+                    key={y}
+                    className='storage-trace'
+                    style={{ animationDelay: `${index * -1.7}s` }}
+                  >
+                    <path d={`M-90 ${y}h90`} stroke='url(#storage-trace)' strokeWidth='1.5' />
+                    <circle cy={y} r='2.5' fill='#b4d2ff' />
+                  </g>
+                ))}
+              </svg>
+            </div>
+            <span className='eyebrow'>A clearer view</span>
+            <h1>
+              Your storage.
+              <br />
+              <span>In focus.</span>
+            </h1>
+            <p>Explore your buckets, inspect every object, and find exactly what you need.</p>
+            <div className='login-intro-footer'>
+              <span>Silo / Storage explorer</span>
+            </div>
+          </section>
+          <section className='login-access'>
+            <div className='login-form-wrap'>
+              <span className='eyebrow'>Your workspace</span>
+              <h2>Sign in to Silo</h2>
+              <p className='login-description'>Enter your administrator credentials to continue.</p>
+              <form onSubmit={submit} className='login-form'>
+                <label>
+                  Username
+                  <input
+                    autoComplete='username'
+                    name='username'
+                    placeholder='Your username'
+                    autoCapitalize='none'
+                    spellCheck={false}
+                    required
+                    value={username}
+                    onChange={event => setUsername(event.target.value)}
+                    disabled={pending}
+                  />
+                </label>
+                <label>
+                  Password
+                  <input
+                    type='password'
+                    autoComplete='current-password'
+                    name='password'
+                    placeholder='Your password'
+                    required
+                    value={password}
+                    onChange={event => setPassword(event.target.value)}
+                    disabled={pending}
+                  />
+                </label>
+                {error && (
+                  <p className='form-error' role='alert'>
+                    {error}
+                  </p>
+                )}
+                <button className='button-primary login-submit' type='submit' disabled={pending}>
+                  {pending ? "Signing in…" : "Sign in"}
+                  <ArrowRight size={18} aria-hidden />
+                </button>
+                {error && (
+                  <button
+                    type='button'
+                    onClick={() => {
+                      setChecking(true)
+                      setError("")
+                      setRetry(value => value + 1)
+                    }}
+                  >
+                    Retry session check
+                  </button>
+                )}
+              </form>
+            </div>
+          </section>
         </main>
       ) : (
         <Routes>
