@@ -6,6 +6,9 @@ COPY apps/web/package.json apps/web/package.json
 RUN npm ci
 COPY tsconfig.json ./
 COPY apps ./apps
+COPY scripts/version.ts ./scripts/version.ts
+ARG VITE_APP_VERSION=unknown
+ARG VITE_BUILD_DATE=
 RUN npm run build
 
 FROM node:22-alpine AS runtime

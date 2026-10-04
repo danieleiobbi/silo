@@ -1,6 +1,10 @@
 services:
   silo:
-    build: .
+    build:
+      context: ${SILO_BUILD_CONTEXT:-.}
+      args:
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-unknown}
+        VITE_BUILD_DATE: ${VITE_BUILD_DATE:-}
     environment:
       S3_ENDPOINT: ${S3_ENDPOINT:-http://garage:3900}
       S3_REGION: ${S3_REGION:-garage}

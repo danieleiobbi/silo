@@ -12,14 +12,17 @@
     "dev:web": "npm run dev -w apps/web",
     "dev:server": "npm run dev -w apps/server",
     "build": "npm run build --workspaces",
-    "check": "npm run check --workspaces && eslint .",
+    "check": "npm run check --workspaces && tsc -p scripts/tsconfig.json && eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "start": "npm start -w apps/server",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:up": "node --import tsx tests/environment.ts up",
     "test:stop": "node --import tsx tests/environment.ts stop",
-    "test:integration": "node --import tsx tests/environment.ts verify"
+    "test:integration": "node --import tsx tests/environment.ts verify",
+    "docker:build": "node --import tsx scripts/docker.ts build",
+    "docker:up": "node --import tsx scripts/docker.ts up",
+    "deploy": "node --import tsx scripts/docker.ts deploy"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
@@ -29,5 +32,6 @@
     "typescript": "^5.9.0",
     "typescript-eslint": "^8.46.0"
   },
-  "type": "module"
+  "type": "module",
+  "version": "0.0.0"
 }

@@ -195,3 +195,18 @@ rm .env.silo-test
 ```
 
 Then `npm run test:up` prepares fresh data and credentials. Ordinary updates never run this reset.
+
+## Git versioning checks
+
+`tests/version.test.ts` uses isolated temporary Git repositories and a local bare origin. It
+verifies conventional bumps, annotated stable tag selection, exact/dirty/ahead metadata, environment
+overrides, invalid dates, release dry-run invariants, decreasing/prerelease rejection,
+branch/dirty-worktree checks, and deployment source isolation with a recording Docker substitute.
+Fixture commits and tags never touch the application repository. The substitute checks command
+sequencing and archived source; it does not prove Docker image startup. `npm run test:up` covers the
+real image build and health check.
+
+For manual checks, inspect the footer in the test app: version and UTC build date should remain
+legible in both themes and at narrow widths. For a tagged build, supply a stable version as a build
+argument and verify the served bundle contains that exact value. Runtime environment changes alone
+must not alter it.

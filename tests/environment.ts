@@ -1,3 +1,4 @@
+import { buildMetadata } from "../scripts/version"
 import { execFileSync } from "node:child_process"
 import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { parseEnv } from "node:util"
@@ -104,7 +105,7 @@ async function up() {
   }
   if (!garage) throw new Error("Garage fixture preparation did not create its container")
   validate(garage, "dxflrs/garage:v2.1.0", "3909", "3900")
-  const env = settings()
+  const env = { ...settings(), ...buildMetadata(root) }
   docker(["start", garageName])
   const client = new S3Client({
     endpoint: env.S3_ENDPOINT,

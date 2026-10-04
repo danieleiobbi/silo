@@ -790,3 +790,14 @@ tr[data-selected="true"] {
       color 140ms ease;
   }
 }
+
+.app-version {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 24px;
+  padding: 16px 24px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

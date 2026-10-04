@@ -230,6 +230,12 @@ export function App() {
           </Routes>
         </Transfers>
       )}
+      <footer className='app-version'>
+        <span>Silo {__APP_VERSION__}</span>
+        <time dateTime={__BUILD_DATE__} title={__BUILD_DATE__}>
+          Built {__BUILD_DATE__.slice(0, 10)} UTC
+        </time>
+      </footer>
     </BrowserRouter>
   )
 }

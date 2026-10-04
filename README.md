@@ -94,6 +94,69 @@ Credentials belong only in the server environment. Do not put them in `VITE_*` v
 them. The example environment file contains no working credentials; `.env` files are ignored by Git
 and excluded from the Docker build context.
 
+## Git versions and releases
+
+Annotated stable Git tags (`vX.Y.Z`) are the release version source. Package manifests stay at
+`0.0.0`. The footer shows the version and UTC build date; Vite embeds both when building, so
+changing runtime environment variables cannot change an existing bundle.
+
+Local Vite builds read Git automatically. Between releases the version includes the commit distance
+and hash, with `-dirty` for tracked modifications. Before the first tag it is a short commit hash.
+Untracked files do not affect Git describe. Builds without Git metadata use `unknown`, unless
+`VITE_APP_VERSION` is supplied. `VITE_BUILD_DATE` defaults to the current UTC timestamp. These two
+variables contain public build information only, never credentials.
+
+Use `npm run docker:up` to build and start the current checkout with host-generated metadata.
+`npm run docker:build` only builds. `npm run test:up` also injects these values into the disposable
+test image. Plain Compose and direct Docker builds remain supported, but require explicit build
+arguments for a known version because `.git` is excluded from the image:
+
+```sh
+VITE_APP_VERSION="$(git describe --always --dirty)" \
+VITE_BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" docker compose build
+```
+
+To prepare a release, commit the reviewed changes on `main`, then run:
+
+```sh
+node --import tsx scripts/release.ts --dry-run
+node --import tsx scripts/release.ts
+```
+
+The optional local `release.sh` wrapper accepts the same arguments and is ignored by Git. The
+release script fetches `origin/main` and tags (including during dry-run), requires a clean worktree
+and a main branch equal to or ahead of origin, and calculates the next version from commits since
+the highest reachable annotated stable tag. Breaking subjects or breaking-change footers bump the
+major, `feat` bumps the minor, and other commits bump the patch. Without a previous tag it starts
+from `v0.0.0`. An explicit increasing stable version can be supplied, for example
+`node --import tsx scripts/release.ts --dry-run v1.0.0`. Prerelease tags are not supported.
+
+The script asks before creating the annotated tag and separately before an atomic push of main and
+that specific tag. It never changes package versions, creates a commit or rewrites existing tags. No
+new commits means no release. A server that rejects atomic push leaves the local tag intact; resolve
+the server limitation before publishing it manually.
+
+On the deployment host, install dependencies with `npm ci`, configure `.env`, then use:
+
+```sh
+npm run deploy
+# Or select a published release explicitly:
+npm run deploy -- v1.0.0
+```
+
+Deployment fetches without forcing tags and selects the highest annotated stable tag reachable from
+`origin/main`, or the explicit tag. It verifies that the tag matches origin and belongs to main's
+history, extracts its source into a temporary directory, builds with the exact version, and only
+then replaces the Compose service. The selected tag supplies both Dockerfile and Compose
+configuration; the deployment checkout supplies the operator's `.env` and Compose project identity.
+The checkout and uncommitted edits are preserved. Temporary source is removed after success or
+failure. A build failure leaves the running service intact; a startup failure is reported, without
+automatic rollback. Deploy a previous published tag explicitly to roll back.
+
+Only tags containing this versioning workflow can be deployed this way. Publishing ordinary main
+commits does not deploy anything. There is no staging environment or automatic CI deployment in this
+repository.
+
 ## Run with Docker Compose
 
 ```sh
@@ -108,7 +171,7 @@ The generator requests the password twice without displaying it. Copy the hash i
 endpoint, region, access key and secret key in `.env`, then run:
 
 ```sh
-docker compose up -d --build
+npm run docker:up
 ```
 
 For local verification, set `SILO_PUBLIC_ORIGIN=http://localhost:3000` and open that exact address.
