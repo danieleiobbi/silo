@@ -146,12 +146,11 @@ node --import tsx scripts/release.ts --dry-run
 node --import tsx scripts/release.ts
 ```
 
-The optional local `release.sh` wrapper accepts the same arguments and is ignored by Git. The
-release script fetches `origin/main` and tags (including during dry-run), requires a clean worktree
-and a main branch equal to or ahead of origin, and calculates the next version from commits since
-the highest reachable annotated stable tag. Breaking subjects or breaking-change footers bump the
-major, `feat` bumps the minor, and other commits bump the patch. Without a previous tag it starts
-from `v0.0.0`. An explicit increasing stable version can be supplied, for example
+The release script fetches `origin/main` and tags (including during dry-run), requires a clean
+worktree and a main branch equal to or ahead of origin, and calculates the next version from commits
+since the highest reachable annotated stable tag. Breaking subjects or breaking-change footers bump
+the major, `feat` bumps the minor, and other commits bump the patch. Without a previous tag it
+starts from `v0.0.0`. An explicit increasing stable version can be supplied, for example
 `node --import tsx scripts/release.ts --dry-run v1.0.0`. Prerelease tags are not supported.
 
 The script asks before creating the annotated tag and separately before an atomic push of main and
