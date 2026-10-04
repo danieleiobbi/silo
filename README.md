@@ -217,12 +217,60 @@ docker compose -f compose.image.yaml pull
 docker compose -f compose.image.yaml up -d
 ```
 
-To add Silo to an existing project's Compose file, copy the `silo` service from `compose.image.yaml`
-and configure its variables in that project's environment. Attach it to the same network as Garage
-and use `S3_ENDPOINT=http://garage:3900`, replacing `garage` with the actual service name. If Garage
-uses the project's default network, no explicit network configuration is needed. For a separate
-Compose project using an existing network, add this configuration and set `SILO_STORAGE_NETWORK` to
-the existing network's exact name:
+To add Silo to an existing project, add this service under the existing `services` mapping in its
+Compose file. Preserve the project's other services. This example assumes Garage's service name is
+`garage` and its S3 API listens on port `3900`:
+
+```yaml
+services:
+  silo:
+    image: ghcr.io/danieleiobbi/silo:${SILO_VERSION:?Set SILO_VERSION}
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      S3_ENDPOINT: http://garage:3900
+      S3_REGION: garage
+      S3_ACCESS_KEY_ID: ${SILO_S3_ACCESS_KEY_ID:?Set SILO_S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${SILO_S3_SECRET_ACCESS_KEY:?Set SILO_S3_SECRET_ACCESS_KEY}
+      SILO_ADMIN_USERNAME: ${SILO_ADMIN_USERNAME:?Set SILO_ADMIN_USERNAME}
+      SILO_ADMIN_PASSWORD_HASH: ${SILO_ADMIN_PASSWORD_HASH:?Set SILO_ADMIN_PASSWORD_HASH}
+      SILO_PUBLIC_ORIGIN: ${SILO_PUBLIC_ORIGIN:?Set SILO_PUBLIC_ORIGIN}
+      SILO_UPLOAD_MAX_MIB: 100
+    ports:
+      - "127.0.0.1:3301:3000"
+```
+
+Add these variables to the existing project's `.env`, replacing all example values. Select a
+published version and generate the password hash with the image command above:
+
+```dotenv
+SILO_VERSION=v1.0.0
+SILO_S3_ACCESS_KEY_ID=replace-with-silo-access-key
+SILO_S3_SECRET_ACCESS_KEY=replace-with-silo-secret-key
+SILO_ADMIN_USERNAME=admin
+SILO_ADMIN_PASSWORD_HASH=replace-with-generated-hash
+SILO_PUBLIC_ORIGIN=https://silo.example.com
+```
+
+The `SILO_S3_*` variables keep Silo's credentials separate from other services' variables; Compose
+passes them into Silo as the required `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY`. Use a dedicated
+Garage S3 key, not an Admin API token. Keep `.env` outside version control. Start only Silo from the
+existing project's directory:
+
+```sh
+docker compose pull silo
+docker compose up -d silo
+docker compose logs -f silo
+```
+
+For updates or application rollbacks in this existing project, change `SILO_VERSION` and repeat
+`docker compose pull silo` and `docker compose up -d silo`.
+
+Attach Silo to the same network as Garage and replace `garage` in the endpoint with the actual
+service name. If Garage uses the project's default network, no explicit network configuration is
+needed. If it uses an explicit network, attach Silo to that network too. For a separate Compose
+project using an existing network, add this configuration and set `SILO_STORAGE_NETWORK` to the
+existing network's exact name:
 
 ```yaml
 services:
