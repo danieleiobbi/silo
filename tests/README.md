@@ -3,7 +3,47 @@
 The default `npm test` suite needs no storage server. Garage/container tests are skipped unless
 explicitly enabled. They must run against disposable fixtures, never an application bucket.
 
-## Prepare fresh fixtures
+## Daily test workflow
+
+Start Docker, install dependencies once with `npm ci`, then use:
+
+```sh
+npm run test:up
+```
+
+Open **<http://127.0.0.1:3301>**. This is the single browser test address. The command creates the
+Garage fixture only when absent, otherwise starts and reuses it. It rebuilds Silo from the current
+working tree before updating the stateless app container. Uploaded objects and the existing
+administrator credentials remain intact. Sign in with the username and `SILO_TEST_PASSWORD` saved in
+the ignored `.env.silo-test`; never paste that file into logs or documentation.
+
+After changing the application, run `npm run test:up` again and refresh the browser. Restarting the
+app can require signing in again because sessions are process-local. There is no separate preview
+server or alternate browser port in this workflow. Garage port 3909 is only the SDK fixture
+endpoint. The fixture key has bucket-creation rights so the demo can exercise all three write
+capabilities. Production permissions are not changed.
+
+```sh
+npm run test:integration
+npm run test:stop
+```
+
+`test:integration` first updates the same app, restores only the named empty test bucket when
+missing, then runs all default, Garage, production and write-compatibility tests. It refuses to
+empty that bucket if it contains objects. Tests mutate documented fixture keys and their own
+randomly named resources; do not put personal objects at those reserved fixture keys. `test:stop`
+stops the app and Garage without removing containers, data, network or credentials. The next
+`test:up` reuses them. `npm test` remains the fast suite that requires no Docker.
+
+The app is managed by `compose.yaml` plus `compose.test.yaml`, under project `silo-verification`.
+The wrapper verifies container image, loopback port and absence of mounts before reuse. On the first
+run it adopts only the documented legacy stateless app; the existing Garage container is preserved.
+The test overlay is separate from production Compose. Do not run it against user storage.
+
+## Advanced fixture preparation
+
+The following lower-level commands are for fixture diagnosis and compatibility experiments. They are
+unnecessary for the daily workflow above.
 
 Install dependencies with `npm ci`. Start Docker, then run from the repository root:
 
@@ -104,40 +144,16 @@ docker rm -f silo-garage-write-test
 rm .env.silo-write-test
 ```
 
-## Verify a production container
+## Verify the production image
 
-Create a network for the two test containers, then build and run Silo:
+Use `npm run test:integration`. The wrapper builds the production image and starts it on 3301, then
+exercises published HTTP endpoints, SPA deep links, actual SDK credentials being absent from the
+frontend bundle and the complete storage workflow. The production check deletes the dedicated
+`silo-empty-check` bucket; the next run recreates it with the fixture key's ownership. No manual
+network setup, environment flags or container recreation is needed.
 
-```sh
-docker network create silo-verification
-docker network connect silo-verification silo-garage-test
-docker build -t silo:verification .
-docker run -d --name silo-production-check \
-  --network silo-verification \
-  --env-file .env.silo-test \
-  -e S3_ENDPOINT=http://silo-garage-test:3900 \
-  -e PORT=3000 \
-  -p 127.0.0.1:3301:3000 \
-  silo:verification
-```
-
-If the network already exists, reuse it; do not create a second one. Open <http://127.0.0.1:3301>
-for manual UI checks. Then run the complete suite:
-
-```sh
-SILO_TEST_GARAGE=1 SILO_TEST_URL=http://127.0.0.1:3301 \
-  node --env-file=.env.silo-test --import tsx --test tests/*.test.ts
-```
-
-The production check exercises the published HTTP endpoints, confirms the SPA deep-link response,
-checks that actual fixture credentials do not appear in the JS bundle, and **deletes
-`silo-empty-check`** after validating the typed confirmation. Prepare fresh fixtures before
-rerunning this check, or explicitly recreate that empty test bucket and grant the test key
-ownership.
-
-Unit tests cover search caps without generating thousands of remote objects. Streaming tests wait
-for the first HTTP chunk before allowing the source to end, so complete buffering would time out.
-HTTP tests also need permission to bind an ephemeral loopback port.
+Streaming tests wait for the first HTTP chunk before allowing the source to end, so complete
+buffering would time out. HTTP tests also need permission to bind ephemeral loopback ports.
 
 ## Manual UI checks
 
@@ -159,9 +175,11 @@ fields, network failures and late responses. Production needs separate evidence 
 proxy, a trusted IP certificate, Secure cookies and an unreachable direct backend LAN port. Loopback
 HTTP tests do not establish this deployment boundary.
 
-## Clean up
+## Stop or deliberately remove the fixtures
 
-Remove only the containers and network created for this test workflow:
+Use `npm run test:stop` to finish a test session while retaining everything for next time. Removing
+Garage destroys uploaded test objects. Only for a deliberate fresh-fixture reset, after checking
+that its contents are disposable, remove these known resources:
 
 ```sh
 docker rm -f silo-production-check silo-garage-test
@@ -169,4 +187,4 @@ docker network rm silo-verification
 rm .env.silo-test
 ```
 
-These commands destroy the disposable fixtures. They do not target an existing Garage deployment.
+Then `npm run test:up` prepares fresh data and credentials. Ordinary updates never run this reset.

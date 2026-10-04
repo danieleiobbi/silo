@@ -65,6 +65,20 @@ Proxy access logs must not record upload query strings containing keys.
 There is no rename, move, content preview or storage administration. Silo does not use Garage's
 Admin API; storage permissions remain controlled by the operator.
 
+## Try the current application locally
+
+With Docker running and dependencies installed using `npm ci`:
+
+```sh
+npm run test:up
+```
+
+Open **<http://127.0.0.1:3301>**. Run the same command after code changes to rebuild and update the
+app. The disposable Garage data and existing credentials are retained; login settings are in the
+ignored `.env.silo-test`. `npm run test:stop` stops the environment without deleting data, and
+`npm run test:integration` updates it and runs the complete integration suite. See
+[the test workflow](tests/README.md) for reserved fixture keys and advanced checks.
+
 ## Before running Silo
 
 Silo requires one configured administrator account for every storage operation. Shared credentials

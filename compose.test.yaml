@@ -1,0 +1,14 @@
+services:
+  silo:
+    image: silo:verification
+    container_name: silo-production-check
+    environment:
+      S3_ENDPOINT: http://silo-garage-test:3900
+      SILO_PUBLIC_ORIGIN: http://127.0.0.1:3301
+    networks:
+      - verification
+
+networks:
+  verification:
+    name: silo-verification
+    external: true

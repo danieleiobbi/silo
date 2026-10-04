@@ -16,7 +16,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "start": "npm start -w apps/server",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:up": "node --import tsx tests/environment.ts up",
+    "test:stop": "node --import tsx tests/environment.ts stop",
+    "test:integration": "node --import tsx tests/environment.ts verify"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
