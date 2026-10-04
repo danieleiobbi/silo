@@ -114,7 +114,7 @@ function Objects({ bucket, prefix }: { bucket: string; prefix: string }) {
       onDragOver={event => {
         if (event.dataTransfer.types.includes("Files")) {
           event.preventDefault()
-          event.dataTransfer.dropEffect = query ? "none" : "copy"
+          event.dataTransfer.dropEffect = query || !transfers.maxUploadBytes ? "none" : "copy"
         }
       }}
       onDragLeave={() => {
@@ -202,7 +202,7 @@ function Objects({ bucket, prefix }: { bucket: string; prefix: string }) {
             <div className='flex flex-wrap gap-2'>
               <button
                 className='button-primary'
-                disabled={Boolean(query)}
+                disabled={Boolean(query) || !transfers.maxUploadBytes}
                 aria-describedby='write-destination'
                 onClick={() => picker.current?.click()}
               >
@@ -225,6 +225,13 @@ function Objects({ bucket, prefix }: { bucket: string; prefix: string }) {
             {query
               ? "Exit search to upload or create a folder"
               : `Destination: ${bucket}/${destinationBase(prefix)}`}
+            {!query && (
+              <span className='block'>
+                {transfers.maxUploadBytes
+                  ? `Maximum file size: ${transfers.maxUploadBytes / (1024 * 1024)} MiB`
+                  : "Loading upload limit…"}
+              </span>
+            )}
           </p>
           {notice && <Toast message={notice} onClose={() => setNotice("")} />}
           {selectedKeys.length > 0 && (

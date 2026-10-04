@@ -35,12 +35,13 @@ providers may accept an existing owned name idempotently, so a successful respon
 prove the bucket was new.
 
 Uploads preserve the original filename and exact destination prefix. The queue retains at most 100
-entries and sends one file at a time; each file may contain at most 100 MiB, including empty files.
-The server admits at most two uploads across all clients. Files stream through Express to S3 without
-whole-file buffering or automatic retries. Progress measures bytes sent; Uploaded appears only after
-storage confirms completion. The queue survives navigation but clears on logout/session expiry.
-Directories cannot be uploaded; mixed drops reject unsupported entries individually. Uploads are
-available while browsing, not in recursive search results.
+entries and sends one file at a time. The default per-file limit is 100 MiB, configured with
+`SILO_UPLOAD_MAX_MIB`; empty files are accepted. The server admits at most two uploads across all
+clients. Files stream through Express to S3 without whole-file buffering or automatic retries.
+Progress measures bytes sent; Uploaded appears only after storage confirms completion. The queue
+survives navigation but clears on logout/session expiry. Directories cannot be uploaded; mixed drops
+reject unsupported entries individually. Uploads are available while browsing, not in recursive
+search results.
 
 Before forwarding an upload body, Silo checks the exact key with HeadObject. If it exists, the API
 returns 409 and the queue warns that the file will be overwritten. Review overwrite opens a native
@@ -144,6 +145,18 @@ docker compose down
 | `S3_SECRET_ACCESS_KEY` | Required secret key; no default.                                        |
 | `PORT`                 | Required application listening port. Compose sets it to `3000`.         |
 | `SILO_PORT`            | Optional host port used by Compose; defaults to `3000`.                 |
+| `SILO_UPLOAD_MAX_MIB`  | Optional per-file upload limit in MiB; integer 1–4096, default `100`.   |
+
+For example, set `SILO_UPLOAD_MAX_MIB=200` in `.env` to allow files up to 200 MiB (209,715,200
+bytes). Restart/recreate Silo after changing it; the frontend reads the active limit from an
+authenticated, uncached API and needs no separate build-time configuration. Invalid values stop
+server startup. The upper bound is a conservative 4 GiB for the single-PUT transport; this does not
+enable multipart uploads. Storage limits and the absolute five-minute transfer deadline still apply.
+[AWS documents the single-PUT limit](https://docs.aws.amazon.com/AmazonS3/latest/userguide/upload-objects.html).
+
+For the local test environment, edit the same setting in `.env` and run `npm run test:up`. An
+explicit value in `.env.silo-test` takes precedence. The wrapper shares only this upload setting
+from `.env`, preserving the isolated fixture credentials.
 
 The server validates configuration before listening and exits non-zero for missing or invalid
 values. It uses path-style S3 addressing internally. There is no `S3_BUCKET_NAME`, provider switch
@@ -241,10 +254,11 @@ server {
 }
 ```
 
-The 100 MiB body limit and 300-second inactivity timeouts match the upload envelope; Express
-additionally enforces an absolute five-minute deadline. Request buffering must remain disabled.
-Configure access logs to use `$uri` without arguments, or disable API access logging, so object keys
-in upload query strings are not recorded.
+The proxy example matches the default 100 MiB limit. If `SILO_UPLOAD_MAX_MIB` is changed, adjust
+`client_max_body_size` to the same MiB value (for example `200m`) and reload nginx. The 300-second
+inactivity timeouts match the upload deadline; Express additionally enforces an absolute five-minute
+deadline. Request buffering must remain disabled. Configure access logs to use `$uri` without
+arguments, or disable API access logging, so object keys in upload query strings are not recorded.
 
 The operator supplies a certificate with the actual IP in its SAN, protects its private key and
 installs the issuing CA in every client's trust store. Verify HTTPS without certificate warnings and

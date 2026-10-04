@@ -11,6 +11,7 @@ test(
     const base = process.env.SILO_TEST_URL!
     const config = readEnv()
     assert.equal((await fetch(base + "/api/buckets")).status, 401)
+    assert.equal((await fetch(base + "/api/config")).status, 401)
     const authenticated = await fetch(base + "/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json", Origin: config.auth.publicOrigin },
@@ -33,6 +34,9 @@ test(
       })
     )
     const get = (path: string) => fetch(base + path, { headers: { Cookie: cookie } })
+    const runtime = await get("/api/config")
+    assert.equal(runtime.headers.get("cache-control"), "no-store")
+    assert.deepEqual(await runtime.json(), { maxUploadBytes: config.maxUploadBytes })
     const remove = (path: string, body: unknown) =>
       fetch(base + path, {
         method: "DELETE",

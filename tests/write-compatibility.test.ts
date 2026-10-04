@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { execFileSync, fork } from "node:child_process"
 import { once } from "node:events"
-import { MAX_UPLOAD_BYTES } from "../apps/server/src/lib/write-validation.ts"
+import { DEFAULT_MAX_UPLOAD_BYTES } from "../apps/server/src/lib/write-validation.ts"
 import { createHash } from "node:crypto"
 import { randomBytes } from "node:crypto"
 import { Readable } from "node:stream"
@@ -177,7 +177,7 @@ test(
               "two concurrent 100 MiB uploads stream with bounded RSS and exact readback",
               async () => {
                 const chunk = Buffer.alloc(64 * 1024, 65)
-                const count = MAX_UPLOAD_BYTES / chunk.length
+                const count = DEFAULT_MAX_UPLOAD_BYTES / chunk.length
                 const expected = createHash("sha256")
                 for (let index = 0; index < count; index++) expected.update(chunk)
                 const expectedDigest = expected.digest("hex")
@@ -201,7 +201,7 @@ test(
                   const responses = await Promise.all(
                     largeKeys.map(key =>
                       fetch(
-                        `${uploadBase}/api/buckets/${bucket}/object?${new URLSearchParams({ key, size: String(MAX_UPLOAD_BYTES) })}`,
+                        `${uploadBase}/api/buckets/${bucket}/object?${new URLSearchParams({ key, size: String(DEFAULT_MAX_UPLOAD_BYTES) })}`,
                         {
                           method: "PUT",
                           headers: {
@@ -237,14 +237,14 @@ test(
                       length += bytes.length
                       hash.update(bytes)
                     }
-                    assert.equal(length, MAX_UPLOAD_BYTES)
+                    assert.equal(length, DEFAULT_MAX_UPLOAD_BYTES)
                     assert.equal(hash.digest("hex"), expectedDigest)
                   }
                   t.diagnostic(
                     `Concurrent 100 MiB files: RSS baseline ${baseline}, peak ${peak}, delta ${peak - baseline} bytes`
                   )
                   assert.ok(
-                    peak - baseline < MAX_UPLOAD_BYTES,
+                    peak - baseline < DEFAULT_MAX_UPLOAD_BYTES,
                     "Node RSS growth must remain below one complete file for two concurrent files"
                   )
                 } finally {

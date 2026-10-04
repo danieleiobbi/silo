@@ -17,6 +17,10 @@ working tree before updating the stateless app container. Uploaded objects and t
 administrator credentials remain intact. Sign in with the username and `SILO_TEST_PASSWORD` saved in
 the ignored `.env.silo-test`; never paste that file into logs or documentation.
 
+To change the per-file limit, set `SILO_UPLOAD_MAX_MIB=200` in `.env` and run `test:up` again. The
+default is 100 MiB; an explicit setting in `.env.silo-test` overrides `.env`. The browser shows the
+active server limit. Integration transport benchmarks still use fixed 100 MiB files.
+
 After changing the application, run `npm run test:up` again and refresh the browser. Restarting the
 app can require signing in again because sessions are process-local. There is no separate preview
 server or alternate browser port in this workflow. Garage port 3909 is only the SDK fixture
@@ -129,6 +133,9 @@ SHA-256 readback. `write-server-fixture.ts` isolates server RSS from the parent 
 readback client; the recorded server RSS increase was 49,414,144 bytes for 200 MiB transferred. This
 is a disposable loopback measurement, not a production-proxy or arbitrary-load guarantee. The
 revised suite has not been rerun on 2.4.1. Default tests skip this opt-in suite.
+
+`tests/upload-config.test.ts` checks default/custom/invalid environment values, authenticated
+runtime configuration and the exact configured HTTP boundary before storage work.
 
 `tests/writes.test.ts` checks exact destinations, UTF-8 bounds, collision confirmation, streamed
 byte counts, media/origin/session rejection and two-upload admission with slot release and live

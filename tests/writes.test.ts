@@ -17,7 +17,7 @@ import {
   keyError,
   nameError,
   newObjectKey,
-  MAX_UPLOAD_BYTES,
+  DEFAULT_MAX_UPLOAD_BYTES,
   UPLOAD_DEADLINE_MS
 } from "../apps/server/src/lib/write-validation.ts"
 import { testAuth, login } from "./auth-helper.ts"
@@ -45,7 +45,7 @@ test("early upstream rejection never replays a consumed upload stream", async ()
   const chunk = Buffer.alloc(64 * 1024)
   const body = Readable.from(
     (function* () {
-      while (produced < MAX_UPLOAD_BYTES) {
+      while (produced < DEFAULT_MAX_UPLOAD_BYTES) {
         produced += chunk.length
         yield chunk
       }
@@ -54,9 +54,11 @@ test("early upstream rejection never replays a consumed upload stream", async ()
   )
   const abort = new AbortController()
   try {
-    await assert.rejects(s3.upload("fixture", "large", MAX_UPLOAD_BYTES, body, false, abort.signal))
+    await assert.rejects(
+      s3.upload("fixture", "large", DEFAULT_MAX_UPLOAD_BYTES, body, false, abort.signal)
+    )
     assert.equal(puts, 1)
-    assert.ok(produced < MAX_UPLOAD_BYTES)
+    assert.ok(produced < DEFAULT_MAX_UPLOAD_BYTES)
   } finally {
     abort.abort()
     body.destroy()
@@ -91,7 +93,7 @@ test("upload forwards an early chunk and pauses a large producer for slow storag
   const request = Object.assign(
     Readable.from(
       (function* () {
-        for (let index = 0; index < MAX_UPLOAD_BYTES / chunk.length; index++) {
+        for (let index = 0; index < DEFAULT_MAX_UPLOAD_BYTES / chunk.length; index++) {
           produced += chunk.length
           yield chunk
         }
@@ -99,7 +101,7 @@ test("upload forwards an early chunk and pauses a large producer for slow storag
       { objectMode: false, highWaterMark: chunk.length }
     ),
     {
-      query: { key: "large", size: String(MAX_UPLOAD_BYTES) },
+      query: { key: "large", size: String(DEFAULT_MAX_UPLOAD_BYTES) },
       params: { bucket: "fixture" },
       get: () => undefined
     }
@@ -134,8 +136,8 @@ test("upload forwards an early chunk and pauses a large producer for slow storag
     resume()
     await done
     assert.equal(status, 201)
-    assert.equal(received, MAX_UPLOAD_BYTES)
-    assert.deepEqual(result, { key: "large", size: MAX_UPLOAD_BYTES })
+    assert.equal(received, DEFAULT_MAX_UPLOAD_BYTES)
+    assert.deepEqual(result, { key: "large", size: DEFAULT_MAX_UPLOAD_BYTES })
   } finally {
     resume()
     request.destroy()
@@ -364,7 +366,7 @@ test("HTTP streams exact bytes, rejects collisions, enforces confirmation, media
         400
       )
     const before = checks
-    assert.equal((await upload("limit", MAX_UPLOAD_BYTES + 1, Buffer.alloc(0))).status, 413)
+    assert.equal((await upload("limit", DEFAULT_MAX_UPLOAD_BYTES + 1, Buffer.alloc(0))).status, 413)
     assert.equal((await upload("key", 2, Buffer.from("abc"))).status, 400)
     assert.equal((await upload("key", 0, Buffer.alloc(0), "yes")).status, 400)
     assert.equal((await upload("key", 0, Buffer.alloc(0), "false", { Cookie: "" })).status, 401)

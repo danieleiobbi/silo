@@ -56,6 +56,10 @@ function settings() {
   if (!existsSync(envPath))
     throw new Error("The existing Garage requires its original .env.silo-test")
   const fixture = parseEnv(readFileSync(envPath, "utf8"))
+  const localPath = new URL("../.env", import.meta.url)
+  const localUploadLimit = existsSync(localPath)
+    ? parseEnv(readFileSync(localPath, "utf8")).SILO_UPLOAD_MAX_MIB
+    : undefined
   if (
     fixture.S3_ENDPOINT !== "http://127.0.0.1:3909" ||
     fixture.S3_REGION !== "garage" ||
@@ -70,6 +74,9 @@ function settings() {
     S3_ENDPOINT: fixture.S3_ENDPOINT,
     S3_ACCESS_KEY_ID: fixture.S3_ACCESS_KEY_ID,
     S3_SECRET_ACCESS_KEY: fixture.S3_SECRET_ACCESS_KEY,
+    // I share only this non-secret setting with the local .env, keeping fixture credentials isolated.
+    SILO_UPLOAD_MAX_MIB:
+      fixture.SILO_UPLOAD_MAX_MIB ?? localUploadLimit ?? process.env.SILO_UPLOAD_MAX_MIB ?? "100",
     SILO_PORT: "3301",
     SILO_PUBLIC_ORIGIN: origin
   }

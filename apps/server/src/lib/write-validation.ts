@@ -18,7 +18,7 @@ export function bucketNameError(name: unknown): string | undefined {
     return "This bucket name uses a reserved prefix or suffix"
   return undefined
 }
-export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+export const DEFAULT_MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 export const MAX_QUEUE_ENTRIES = 100
 export const MAX_ACTIVE_UPLOADS = 2
 export const UPLOAD_DEADLINE_MS = 5 * 60 * 1000

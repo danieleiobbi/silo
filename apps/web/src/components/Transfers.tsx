@@ -2,12 +2,11 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { Link } from "react-router-dom"
 import { DeleteDialog } from "./DeleteDialog"
 import { bucketUrl, objectsUrl } from "../lib/location"
-import { expireSession, sessionVersion } from "../lib/api"
+import { api, expireSession, sessionVersion } from "../lib/api"
 import {
   keyError,
   nameError,
   newObjectKey,
-  MAX_UPLOAD_BYTES,
   MAX_QUEUE_ENTRIES
 } from "../../../server/src/lib/write-validation"
 
@@ -38,6 +37,7 @@ const TransfersContext = createContext<{
   add: (bucket: string, prefix: string, candidates: Candidate[]) => void
   revision: number
   dirty: ReadonlySet<string>
+  maxUploadBytes?: number
 } | null>(null)
 export function useTransfers() {
   return useContext(TransfersContext)!
@@ -45,6 +45,9 @@ export function useTransfers() {
 const running = (entry: Entry) => ["queued", "uploading", "finalizing"].includes(entry.status)
 
 export function Transfers({ children }: { children: ReactNode }) {
+  const [maxUploadBytes, setMaxUploadBytes] = useState<number>()
+  const [configError, setConfigError] = useState("")
+  const [configRetry, setConfigRetry] = useState(0)
   const [entries, setEntries] = useState<Entry[]>([])
   const [revision, setRevision] = useState(0)
   const [confirming, setConfirming] = useState<number>()
@@ -55,6 +58,20 @@ export function Transfers({ children }: { children: ReactNode }) {
   const active = useRef<{ id: number; xhr: XMLHttpRequest } | null>(null)
   const awaitingRefresh = useRef(false)
   const [announcement, setAnnouncement] = useState("")
+  useEffect(() => {
+    const abort = new AbortController()
+    setConfigError("")
+    api<{ maxUploadBytes: number }>("/config", { signal: abort.signal })
+      .then(config => {
+        if (!Number.isSafeInteger(config.maxUploadBytes) || config.maxUploadBytes <= 0)
+          throw new Error("Invalid upload limit")
+        if (!abort.signal.aborted) setMaxUploadBytes(config.maxUploadBytes)
+      })
+      .catch(() => {
+        if (!abort.signal.aborted) setConfigError("Unable to load the upload limit. Try again.")
+      })
+    return () => abort.abort()
+  }, [configRetry])
   useEffect(() => {
     live.current = true
     const preventDrop = (event: DragEvent) => {
@@ -175,6 +192,10 @@ export function Transfers({ children }: { children: ReactNode }) {
   }, [entries])
 
   function add(bucket: string, prefix: string, candidates: Candidate[]) {
+    if (maxUploadBytes === undefined) {
+      setRejections(["Upload settings are not ready. Try again after the limit has loaded."])
+      return
+    }
     const rejected: string[] = []
     const next = [...entries]
     for (const candidate of candidates) {
@@ -183,8 +204,8 @@ export function Transfers({ children }: { children: ReactNode }) {
         candidate.error ??
         nameError(candidate.name) ??
         keyError(key) ??
-        (candidate.file && candidate.file.size > MAX_UPLOAD_BYTES
-          ? "File exceeds 100 MiB"
+        (candidate.file && candidate.file.size > maxUploadBytes
+          ? `File exceeds ${maxUploadBytes / (1024 * 1024)} MiB`
           : undefined) ??
         (next.some(item => item.bucket === bucket && item.key === key)
           ? "Destination is already retained in the queue"
@@ -223,8 +244,14 @@ export function Transfers({ children }: { children: ReactNode }) {
   }
   const confirm = entries.find(entry => entry.id === confirming)
   return (
-    <TransfersContext.Provider value={{ add, revision, dirty: dirty.current }}>
+    <TransfersContext.Provider value={{ add, revision, dirty: dirty.current, maxUploadBytes }}>
       {children}
+      {configError && (
+        <div className='workspace' role='alert'>
+          <p>{configError}</p>
+          <button onClick={() => setConfigRetry(value => value + 1)}>Retry upload settings</button>
+        </div>
+      )}
       {(entries.length > 0 || rejections.length > 0) && (
         <section className='workspace transfer-workspace' aria-label='File transfers'>
           <div className='data-surface transfer-panel'>

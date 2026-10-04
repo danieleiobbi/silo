@@ -6,7 +6,7 @@ import {
   keyError,
   nameError,
   newObjectKey,
-  MAX_UPLOAD_BYTES,
+  DEFAULT_MAX_UPLOAD_BYTES,
   MAX_ACTIVE_UPLOADS,
   UPLOAD_DEADLINE_MS
 } from "../lib/write-validation.js"
@@ -36,7 +36,7 @@ export class UploadCounter extends Transform {
   }
 }
 
-export function writesController(s3: S3Service) {
+export function writesController(s3: S3Service, maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES) {
   return {
     async folder(request: Request<{ bucket: string }>, response: Response) {
       const body = request.body as unknown
@@ -81,10 +81,11 @@ export function writesController(s3: S3Service) {
         response.status(400).json({ error: error ?? "Invalid upload size" })
         return
       }
-      if (size > MAX_UPLOAD_BYTES) {
-        response
-          .status(413)
-          .json({ error: "Files must be at most 100 MiB", code: "UploadTooLarge" })
+      if (size > maxUploadBytes) {
+        response.status(413).json({
+          error: `Files must be at most ${maxUploadBytes / (1024 * 1024)} MiB`,
+          code: "UploadTooLarge"
+        })
         return
       }
       const length = request.get("content-length")

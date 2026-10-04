@@ -4,7 +4,10 @@ import { createS3Service } from "./services/s3.service.js"
 
 try {
   const config = readEnv()
-  const app = createApp(createS3Service(config), config.auth)
+  const app = createApp(createS3Service(config), {
+    ...config.auth,
+    maxUploadBytes: config.maxUploadBytes
+  })
   app
     .listen(config.port, () => console.info(`Silo listening on port ${config.port}`))
     .on("error", error => {

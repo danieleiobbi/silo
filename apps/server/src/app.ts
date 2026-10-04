@@ -7,14 +7,16 @@ import { bucketsRoutes } from "./routes/buckets.routes.js"
 import type { S3Service } from "./services/s3.service.js"
 import { createAuth } from "./auth/http.js"
 import type { readEnv } from "./config/env.js"
+import { DEFAULT_MAX_UPLOAD_BYTES } from "./lib/write-validation.js"
 
 export function createApp(
   s3: S3Service,
-  config: ReturnType<typeof readEnv>["auth"],
+  config: ReturnType<typeof readEnv>["auth"] & { maxUploadBytes?: number },
   now = Date.now
 ) {
   const app = express()
   const auth = createAuth(config, now)
+  const maxUploadBytes = config.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES
   app.disable("x-powered-by")
   app.use("/api", (request, response, next) => {
     response.setHeader("Cache-Control", "no-store")
@@ -56,8 +58,9 @@ export function createApp(
   app.use("/api/auth", auth.routes)
   // I protect every subsequent API router before it can invoke object storage.
   app.use("/api", auth.requireSession)
+  app.get("/api/config", (_request, response) => response.json({ maxUploadBytes }))
   app.use("/api/buckets", bucketsRoutes(s3))
-  app.use("/api/buckets", objectsRoutes(s3))
+  app.use("/api/buckets", objectsRoutes(s3, maxUploadBytes))
   app.use("/api", (_request, response) => {
     response.status(404).json({ error: "Endpoint not found" })
   })
