@@ -3,7 +3,7 @@ import { hashPassword, parsePasswordHash } from "../apps/server/src/auth/passwor
 
 export const testPassword = "disposable test password"
 export const testAuth = {
-  username: "fixture-admin",
+  username: "admin",
   passwordHash: parsePasswordHash(await hashPassword(testPassword)),
   publicOrigin: "http://127.0.0.1"
 }

@@ -110,7 +110,7 @@ api_bind_addr = "[::]:3900"
   const passwordHash = await hashPassword(password)
   writeFileSync(
     envFile,
-    `S3_ENDPOINT=http://127.0.0.1:${port}\nS3_REGION=garage\nS3_ACCESS_KEY_ID=${accessKeyId}\nS3_SECRET_ACCESS_KEY=${secretAccessKey}\nPORT=3000\nSILO_ADMIN_USERNAME=fixture-admin\nSILO_ADMIN_PASSWORD_HASH=${passwordHash}\nSILO_PUBLIC_ORIGIN=http://127.0.0.1:3301\nSILO_TEST_PASSWORD=${password}\n`,
+    `S3_ENDPOINT=http://127.0.0.1:${port}\nS3_REGION=garage\nS3_ACCESS_KEY_ID=${accessKeyId}\nS3_SECRET_ACCESS_KEY=${secretAccessKey}\nPORT=3000\nSILO_ADMIN_USERNAME=admin\nSILO_ADMIN_PASSWORD_HASH=${passwordHash}\nSILO_PUBLIC_ORIGIN=http://127.0.0.1:3301\nSILO_TEST_PASSWORD=${password}\n`,
     { mode: 0o600 }
   )
   console.info(`Garage fixtures ready on 127.0.0.1:${port}; credentials saved to ${envFile}`)
