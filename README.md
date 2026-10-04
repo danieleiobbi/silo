@@ -180,6 +180,73 @@ Only tags containing this versioning workflow can be deployed this way. Publishi
 commits does not deploy anything. There is no staging environment or automatic CI deployment in this
 repository.
 
+## Use a published image with an existing Garage
+
+The `Publish release image` GitHub Actions workflow runs only when an annotated stable `vX.Y.Z` tag
+is pushed. Ordinary commits and branch pushes do not publish images. The tagged commit must belong
+to `main`. Type checks, lint, default tests, build, formatting and disposable Garage integration
+tests must pass before publication. No production credentials are needed by Actions.
+
+Each release publishes `ghcr.io/danieleiobbi/silo:vX.Y.Z` for Linux AMD64 and ARM64. There is no
+floating `latest` tag: select an explicit release, or pin its digest for an immutable deployment.
+The workflow publishes an image, not a deployment, and does not contact your production Garage. The
+first image will become available only after this workflow is committed and a release tag is pushed
+successfully. GHCR packages are initially private; the package owner must set package visibility to
+public to allow unauthenticated pulls, or consumers must authenticate to GHCR with a token that has
+`read:packages`. Repository visibility does not automatically make a package public.
+
+Download `compose.image.yaml` and `.env.example` from the selected release's Git tag into your
+deployment directory. No source checkout, Node.js or npm is required on the deployment host:
+
+```sh
+cp .env.example .env
+chmod 600 .env
+```
+
+Set `SILO_VERSION` in `.env` to the published tag, such as `v1.0.0` (an example, not a promise that
+this version exists). Generate the administrator password hash using that same image:
+
+```sh
+docker run --rm -it ghcr.io/danieleiobbi/silo:v1.0.0 node apps/server/dist/auth/hash-password.js
+```
+
+Configure the S3 endpoint, region and credentials, administrator username/hash and HTTPS public
+origin in `.env`. Keep credentials in `.env`, outside version control. Then start:
+
+```sh
+docker compose -f compose.image.yaml pull
+docker compose -f compose.image.yaml up -d
+```
+
+To add Silo to an existing project's Compose file, copy the `silo` service from `compose.image.yaml`
+and configure its variables in that project's environment. Attach it to the same network as Garage
+and use `S3_ENDPOINT=http://garage:3900`, replacing `garage` with the actual service name. If Garage
+uses the project's default network, no explicit network configuration is needed. For a separate
+Compose project using an existing network, add this configuration and set `SILO_STORAGE_NETWORK` to
+the existing network's exact name:
+
+```yaml
+services:
+  silo:
+    networks:
+      - storage
+networks:
+  storage:
+    external: true
+    name: ${SILO_STORAGE_NETWORK:?Set the existing Garage network name}
+```
+
+Keep the loopback port binding when a host HTTPS proxy forwards to Silo. For a containerized proxy,
+also attach Silo to its private network and forward to `silo:3000`; see the authentication/proxy
+requirements below. Silo requires no volume or database and starts no Garage service. Use a
+dedicated S3 key with only the permissions you intend to expose through Silo, including its write
+operations.
+
+For an update, change `SILO_VERSION`, then repeat `pull` and `up -d`. To roll back the application,
+select the previous release and repeat those commands; this does not restore deleted storage data.
+Do not move published Git tags or overwrite an existing release image. Correct a release with a new
+version. `npm run deploy` remains the optional source-build workflow and does not pull from GHCR.
+
 ## Run with Docker Compose
 
 ```sh
