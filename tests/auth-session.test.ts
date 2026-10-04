@@ -130,7 +130,11 @@ test("every storage route rejects anonymous requests before S3; logout invalidat
     "search",
     "download",
     "deleteObjects",
-    "deleteBucket"
+    "deleteBucket",
+    "createBucket",
+    "createFolder",
+    "checkUpload",
+    "upload"
   ] as const) {
     service[name] = async () => {
       calls++
@@ -159,6 +163,33 @@ test("every storage route rejects anonymous requests before S3; logout invalidat
             method: "DELETE",
             headers: { Origin: testAuth.publicOrigin, "Content-Type": "application/json" },
             body: "{}"
+          })
+        ).status,
+        401
+      )
+    }
+    assert.equal(calls, 0)
+    assert.equal(
+      (
+        await fetch(`${base}/api/buckets`, {
+          method: "POST",
+          headers: { Origin: testAuth.publicOrigin, "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "new-bucket" })
+        })
+      ).status,
+      401
+    )
+    assert.equal(calls, 0)
+    for (const [path, method, contentType, body] of [
+      ["/buckets/b/folders", "POST", "application/json", '{"prefix":"","name":"folder"}'],
+      ["/buckets/b/object?key=file&size=1", "PUT", "application/octet-stream", "x"]
+    ]) {
+      assert.equal(
+        (
+          await fetch(`${base}/api${path}`, {
+            method,
+            headers: { Origin: testAuth.publicOrigin, "Content-Type": contentType },
+            body
           })
         ).status,
         401

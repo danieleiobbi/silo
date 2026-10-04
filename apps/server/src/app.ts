@@ -29,6 +29,28 @@ export function createApp(
     },
     express.json({ limit: "4kb" })
   )
+  app.use("/api/buckets", (request, response, next) => {
+    if (request.method !== "POST" && request.method !== "PUT") return next()
+    auth.requireOrigin(request, response, () => {
+      if (request.method === "PUT") {
+        if (!request.is("application/octet-stream") || request.get("content-encoding")) {
+          response.status(415).json({
+            error: "An unencoded application/octet-stream body is required",
+            code: "UnsupportedBodyType"
+          })
+          return
+        }
+        return next()
+      }
+      if (!request.is("application/json")) {
+        response
+          .status(415)
+          .json({ error: "A JSON request is required", code: "UnsupportedBodyType" })
+        return
+      }
+      next()
+    })
+  })
   app.use(express.json({ limit: "256kb" }))
   app.use("/api", healthRoutes)
   app.use("/api/auth", auth.routes)
@@ -76,9 +98,62 @@ export function createApp(
         status = 409
         message = "Bucket is not empty. Silo never empties buckets automatically."
         break
+      case "BucketNameConflict":
+        response.status(409).json({
+          error: "Bucket already exists. Refresh the bucket list and choose another name.",
+          code: "BucketAlreadyExists"
+        })
+        return
+      case "ObjectAlreadyExists":
+        response.status(409).json({
+          error: "This file already exists and will be overwritten. Confirm overwrite to continue.",
+          code: "ObjectAlreadyExists"
+        })
+        return
+      case "FolderAlreadyExists":
+        response.status(409).json({ error: "Folder already exists", code: "FolderAlreadyExists" })
+        return
+      case "PreconditionFailed":
+      case "ConditionalRequestConflict":
+        response.status(409).json({
+          error: "The destination changed. Inspect it before retrying.",
+          code: "DestinationConflict"
+        })
+        return
+      case "UploadLengthMismatch":
+        response.status(400).json({
+          error: "The received upload length differs from its declared size",
+          code: "SizeMismatch"
+        })
+        return
+      case "UploadTimeout":
+        response.status(504).json({
+          error:
+            "Upload timed out; its outcome is unknown. Inspect the destination before retrying.",
+          code: "OutcomeUnknown"
+        })
+        return
+      case "StorageOperationNotSupported":
+        response.status(501).json({
+          error: "Object storage does not support bucket creation",
+          code: "UnsupportedOperation"
+        })
+        return
+      case "BucketCreationTimedOut":
+      case "BucketCreationOutcomeUnknown":
+        response.status(name === "BucketCreationTimedOut" ? 504 : 502).json({
+          error:
+            "Bucket creation outcome is unknown. Refresh the bucket list and inspect it before trying again.",
+          code: "OutcomeUnknown"
+        })
+        return
       case "SyntaxError":
         status = 400
         message = "Invalid request body"
+        break
+      case "UnsupportedMediaTypeError":
+        status = 415
+        message = "Unsupported request body type or encoding"
         break
       case "PayloadTooLargeError":
         status = 413

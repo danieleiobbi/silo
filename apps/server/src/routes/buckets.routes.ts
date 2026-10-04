@@ -4,5 +4,8 @@ import type { S3Service } from "../services/s3.service.js"
 
 export function bucketsRoutes(s3: S3Service) {
   const controller = bucketsController(s3)
-  return Router().get("/", controller.list).delete("/:bucket", controller.remove)
+  return Router()
+    .get("/", controller.list)
+    .post("/", controller.create)
+    .delete("/:bucket", controller.remove)
 }

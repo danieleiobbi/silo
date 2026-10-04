@@ -1,3 +1,4 @@
+import { Transfers } from "./components/Transfers"
 import { Theme } from "./components/Theme"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { ObjectsRoute } from "./pages/Objects"
@@ -212,20 +213,22 @@ export function App() {
           </section>
         </main>
       ) : (
-        <Routes>
-          <Route path='/' element={<Navigate to='/buckets' replace />} />
-          <Route path='/buckets' element={<Buckets />} />
-          <Route path='/buckets/:bucket' element={<ObjectsRoute />} />
-          <Route
-            path='*'
-            element={
-              <main className='p-8'>
-                <h1>Page not found</h1>
-                <a href='/buckets'>Go to buckets</a>
-              </main>
-            }
-          />
-        </Routes>
+        <Transfers>
+          <Routes>
+            <Route path='/' element={<Navigate to='/buckets' replace />} />
+            <Route path='/buckets' element={<Buckets />} />
+            <Route path='/buckets/:bucket' element={<ObjectsRoute />} />
+            <Route
+              path='*'
+              element={
+                <main className='p-8'>
+                  <h1>Page not found</h1>
+                  <a href='/buckets'>Go to buckets</a>
+                </main>
+              }
+            />
+          </Routes>
+        </Transfers>
       )}
     </BrowserRouter>
   )

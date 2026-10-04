@@ -9,7 +9,11 @@ import { hashPassword } from "../apps/server/src/auth/password.ts"
 
 // I create a dedicated disposable Garage, not a connection to an existing deployment.
 // I refuse an existing container name instead of resetting someone else's test data.
-const container = "silo-garage-test"
+const writeCompatibility = process.argv.includes("--write-compatibility")
+const container = writeCompatibility ? "silo-garage-write-test" : "silo-garage-test"
+const image = writeCompatibility ? "dxflrs/garage:v2.4.1" : "dxflrs/garage:v2.1.0"
+const port = writeCompatibility ? 3910 : 3909
+const envFile = writeCompatibility ? ".env.silo-write-test" : ".env.silo-test"
 function docker(...args: string[]) {
   try {
     return execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
@@ -43,7 +47,7 @@ api_bind_addr = "[::]:3900"
 `,
     { mode: 0o600 }
   )
-  docker("create", "--name", container, "-p", "127.0.0.1:3909:3900", "dxflrs/garage:v2.1.0")
+  docker("create", "--name", container, "-p", `127.0.0.1:${port}:3900`, image)
   docker("cp", config, `${container}:/etc/garage.toml`)
   docker("start", container)
   let nodeId: string | undefined
@@ -55,7 +59,7 @@ api_bind_addr = "[::]:3900"
     }
     if (!nodeId) await setTimeout(500)
   }
-  if (!nodeId) throw new Error("Garage did not start; inspect docker logs silo-garage-test")
+  if (!nodeId) throw new Error(`Garage did not start; inspect docker logs ${container}`)
   const garage = (...args: string[]) => docker("exec", container, "/garage", ...args)
   garage("layout", "assign", nodeId, "-z", "test", "-c", "1G")
   garage("layout", "apply", "--version", "1")
@@ -65,7 +69,7 @@ api_bind_addr = "[::]:3900"
     garage("bucket", "allow", "--read", "--write", "--owner", bucket, "--key", accessKeyId)
   }
   const client = new S3Client({
-    endpoint: "http://127.0.0.1:3909",
+    endpoint: `http://127.0.0.1:${port}`,
     region: "garage",
     credentials: { accessKeyId, secretAccessKey },
     forcePathStyle: true
@@ -77,7 +81,7 @@ api_bind_addr = "[::]:3900"
       await client.send(new ListBucketsCommand({}))
       break
     } catch {
-      if (attempt === 29) throw new Error("Garage S3 did not become reachable on port 3909")
+      if (attempt === 29) throw new Error(`Garage S3 did not become reachable on port ${port}`)
       await setTimeout(500)
     }
   }
@@ -105,11 +109,11 @@ api_bind_addr = "[::]:3900"
   const password = randomBytes(32).toString("base64url")
   const passwordHash = await hashPassword(password)
   writeFileSync(
-    ".env.silo-test",
-    `S3_ENDPOINT=http://127.0.0.1:3909\nS3_REGION=garage\nS3_ACCESS_KEY_ID=${accessKeyId}\nS3_SECRET_ACCESS_KEY=${secretAccessKey}\nPORT=3000\nSILO_ADMIN_USERNAME=fixture-admin\nSILO_ADMIN_PASSWORD_HASH=${passwordHash}\nSILO_PUBLIC_ORIGIN=http://127.0.0.1:3301\nSILO_TEST_PASSWORD=${password}\n`,
+    envFile,
+    `S3_ENDPOINT=http://127.0.0.1:${port}\nS3_REGION=garage\nS3_ACCESS_KEY_ID=${accessKeyId}\nS3_SECRET_ACCESS_KEY=${secretAccessKey}\nPORT=3000\nSILO_ADMIN_USERNAME=fixture-admin\nSILO_ADMIN_PASSWORD_HASH=${passwordHash}\nSILO_PUBLIC_ORIGIN=http://127.0.0.1:3301\nSILO_TEST_PASSWORD=${password}\n`,
     { mode: 0o600 }
   )
-  console.info("Garage fixtures ready on 127.0.0.1:3909; credentials saved to .env.silo-test")
+  console.info(`Garage fixtures ready on 127.0.0.1:${port}; credentials saved to ${envFile}`)
 } finally {
   rmSync(directory, { recursive: true, force: true })
 }

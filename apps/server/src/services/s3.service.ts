@@ -6,20 +6,134 @@ import {
   HeadObjectCommand,
   GetObjectCommand,
   ListObjectsV2Command,
-  ListBucketsCommand
+  ListBucketsCommand,
+  CreateBucketCommand,
+  PutObjectCommand,
+  type BucketLocationConstraint
 } from "@aws-sdk/client-s3"
 import type { readEnv } from "../config/env.js"
+import type { Readable } from "node:stream"
 
 export function createS3Service(config: ReturnType<typeof readEnv>) {
   // I use path-style addressing for Garage so bucket names do not require DNS records.
   // I keep SDK calls here: controllers handle HTTP, while this service only handles S3.
-  const client = new S3Client({
+  const options = {
     endpoint: config.endpoint,
     region: config.region,
     credentials: config.credentials,
     forcePathStyle: true
+  }
+  const client = new S3Client(options)
+  // I never replay a write after an ambiguous network outcome or replay a consumed stream.
+  const creationClient = new S3Client({
+    ...options,
+    maxAttempts: 1,
+    requestChecksumCalculation: "WHEN_REQUIRED"
   })
+  const listBuckets = async () => {
+    const result = await client.send(new ListBucketsCommand({}))
+    return (result.Buckets ?? []).map(bucket => ({
+      name: bucket.Name!,
+      createdAt: bucket.CreationDate
+    }))
+  }
   return {
+    async createFolder(bucket: string, key: string) {
+      const result = await client.send(
+        new ListObjectsV2Command({ Bucket: bucket, Prefix: key, EncodingType: "url", MaxKeys: 1 })
+      )
+      if (result.Contents?.length)
+        throw Object.assign(new Error("Folder already exists"), { name: "FolderAlreadyExists" })
+      await creationClient.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: Buffer.alloc(0),
+          ContentLength: 0,
+          ContentType: "application/octet-stream",
+          IfNoneMatch: "*"
+        })
+      )
+      return { key, prefix: key }
+    },
+    async checkUpload(bucket: string, key: string, overwrite: boolean, signal: AbortSignal) {
+      // I always check the exact key. This is advisory: Garage ignores conditional PUT.
+      let exists = false
+      try {
+        await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }), {
+          abortSignal: signal
+        })
+        exists = true
+      } catch (error) {
+        if (!(error instanceof Error) || !["NoSuchKey", "NotFound"].includes(error.name))
+          throw error
+      }
+      if (exists && !overwrite)
+        throw Object.assign(new Error("The existing file will be overwritten"), {
+          name: "ObjectAlreadyExists"
+        })
+    },
+    async upload(
+      bucket: string,
+      key: string,
+      size: number,
+      body: Readable,
+      overwrite: boolean,
+      signal: AbortSignal
+    ) {
+      await creationClient.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: body,
+          ContentLength: size,
+          ContentType: "application/octet-stream",
+          ...(!overwrite ? { IfNoneMatch: "*" } : {})
+        }),
+        { abortSignal: signal }
+      )
+      return { key, size }
+    },
+    async createBucket(name: string) {
+      // I check exact visible names for friendly feedback, not as a reservation.
+      if ((await listBuckets()).some(bucket => bucket.name === name))
+        throw Object.assign(new Error("Bucket already exists"), { name: "BucketNameConflict" })
+      try {
+        await creationClient.send(
+          new CreateBucketCommand({
+            Bucket: name,
+            ...(config.region === "us-east-1"
+              ? {}
+              : {
+                  CreateBucketConfiguration: {
+                    LocationConstraint: config.region as BucketLocationConstraint
+                  }
+                })
+          })
+        )
+      } catch (error) {
+        const code = error instanceof Error ? error.name : ""
+        if (code === "BucketAlreadyExists" || code === "BucketAlreadyOwnedByYou")
+          throw Object.assign(new Error("Bucket already exists"), { name: "BucketNameConflict" })
+        if (code === "NotImplemented")
+          throw Object.assign(new Error("Bucket creation is unsupported"), {
+            name: "StorageOperationNotSupported"
+          })
+        if (
+          ["AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch", "NoSuchBucket"].includes(
+            code
+          )
+        )
+          throw error
+        // I cannot infer that a failed response means the provider did not create the bucket.
+        throw Object.assign(new Error("Bucket creation outcome is unknown"), {
+          name: ["TimeoutError", "RequestTimeout"].includes(code)
+            ? "BucketCreationTimedOut"
+            : "BucketCreationOutcomeUnknown"
+        })
+      }
+      return { name }
+    },
     async deleteObjects(bucket: string, keys: string[]) {
       // I send only the exact selected keys. I never expand a prefix into deletion targets.
       // I preserve per-object failures because S3 can partially accept a batch.
@@ -152,13 +266,7 @@ export function createS3Service(config: ReturnType<typeof readEnv>) {
         nextToken: result.IsTruncated ? result.NextContinuationToken : undefined
       }
     },
-    async listBuckets() {
-      const result = await client.send(new ListBucketsCommand({}))
-      return (result.Buckets ?? []).map(bucket => ({
-        name: bucket.Name!,
-        createdAt: bucket.CreationDate
-      }))
-    }
+    listBuckets
   }
 }
 export type S3Service = ReturnType<typeof createS3Service>

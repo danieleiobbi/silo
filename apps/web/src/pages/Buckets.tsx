@@ -1,11 +1,14 @@
+import { CreateDialog } from "../components/CreateDialog"
 import { DeleteDialog } from "../components/DeleteDialog"
 import { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { api } from "../lib/api"
 import { ArrowUpRight, Database, RefreshCw, Trash2 } from "lucide-react"
 
 type Bucket = { name: string; createdAt?: string }
 export function Buckets() {
+  const navigate = useNavigate()
+  const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<string>()
   const [buckets, setBuckets] = useState<Bucket[]>()
   const [error, setError] = useState("")
@@ -27,16 +30,21 @@ export function Buckets() {
           <h1>Buckets</h1>
           <p>Choose a bucket to explore its objects.</p>
         </div>
-        <button
-          onClick={() => {
-            setError("")
-            setBuckets(undefined)
-            setRefresh(refresh + 1)
-          }}
-        >
-          <RefreshCw size={15} aria-hidden />
-          Refresh
-        </button>
+        <div className='flex flex-wrap gap-2'>
+          <button className='button-primary' onClick={() => setCreating(true)}>
+            Create bucket
+          </button>
+          <button
+            onClick={() => {
+              setError("")
+              setBuckets(undefined)
+              setRefresh(refresh + 1)
+            }}
+          >
+            <RefreshCw size={15} aria-hidden />
+            Refresh
+          </button>
+        </div>
       </div>
       {error ? (
         <div className='state-panel state-error' role='alert'>
@@ -108,6 +116,15 @@ export function Buckets() {
             </tbody>
           </table>
         </div>
+      )}
+      {creating && (
+        <CreateDialog
+          onClose={() => setCreating(false)}
+          onCreated={result => {
+            setRefresh(value => value + 1)
+            navigate(`/buckets/${encodeURIComponent(result.name!)}`)
+          }}
+        />
       )}
       {deleting !== undefined && (
         <DeleteDialog

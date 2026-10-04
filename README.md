@@ -14,10 +14,56 @@ the API and the compiled interface from one Node process.
 - Copy a key or download an object through Silo.
 - Delete one object or the objects selected on the current page.
 - Delete an empty bucket after typing its exact name.
+- Create an empty bucket or a zero-byte folder marker.
+- Upload files through the picker or drop them into the current browsing workspace.
 
-There is no upload, bucket creation, rename, move, folder creation, content preview or storage
-administration. Silo does not use Garage's Admin API. The application that owns the data remains
-responsible for creating objects and managing their lifecycle.
+The Create bucket dialog uses `POST /api/buckets` and JSON `{ "name": "example-bucket" }`. Creation
+requires operator-granted bucket-creation permission on the configured S3 key; Silo never grants
+itself rights or configures the storage server. New names use 3–63 lowercase ASCII letters, digits
+or hyphens, with an alphanumeric first and last character, excluding AWS-reserved prefixes/suffixes.
+Silo rejects invalid names without rewriting them and checks exact visible names before creation.
+This check is advisory; the provider decides final conflicts. Existing bucket navigation remains
+unrestricted by the creation subset.
+
+Creation sends only the bucket name and configured region (omitting LocationConstraint for
+`us-east-1`), with no settings or ACL changes requested. The API returns `201` and
+`{ "name": "..." }` after storage confirms success. It requires a valid session, matching Origin and
+a JSON body; invalid names return `400`, unsupported bodies `415`, conflicts `409` and storage
+permission denial `403`. CreateBucket is never automatically retried. On `502`/`504` with
+`code: "OutcomeUnknown"`, refresh and inspect the bucket list before another explicit attempt. Some
+providers may accept an existing owned name idempotently, so a successful response alone does not
+prove the bucket was new.
+
+Uploads preserve the original filename and exact destination prefix. The queue retains at most 100
+entries and sends one file at a time; each file may contain at most 100 MiB, including empty files.
+The server admits at most two uploads across all clients. Files stream through Express to S3 without
+whole-file buffering or automatic retries. Progress measures bytes sent; Uploaded appears only after
+storage confirms completion. The queue survives navigation but clears on logout/session expiry.
+Directories cannot be uploaded; mixed drops reject unsupported entries individually. Uploads are
+available while browsing, not in recursive search results.
+
+Before forwarding an upload body, Silo checks the exact key with HeadObject. If it exists, the API
+returns 409 and the queue warns that the file will be overwritten. Review overwrite opens a native
+confirmation dialog showing the exact destination. Only confirmation sends `overwrite=true` for that
+attempt; a later retry repeats the check without reusing authorization. Unconfirmed creates also
+send `If-None-Match: *`. Disposable Garage 2.1.0 and 2.4.1 ignored this condition, so the check is
+advisory: another client can create or change an object between the check and write. Silo does not
+promise atomic protection against concurrent external writers.
+
+Create folder sends `POST /api/buckets/:bucket/folders` with `{ "prefix": "...", "name": "..." }`
+and creates an exact trailing-slash, zero-byte marker. Existing markers or descendants cause a
+conflict; folder creation has no overwrite action. Prefixes are never normalized. The folder name
+must be one segment; destination keys must fit within 1,024 UTF-8 bytes.
+
+Uploads use `PUT /api/buckets/:bucket/object?key=...&size=...` with an octet-stream body, a valid
+session and matching Origin. Compressed bodies are rejected. Silo counts incoming bytes and checks
+Content-Length when supplied. A five-minute deadline and client disconnect abort the upstream
+request. Cancellation, lost connections and ambiguous upstream failures may occur after storage
+commits: inspect the destination before retrying. Cancel does not undo an object already stored.
+Proxy access logs must not record upload query strings containing keys.
+
+There is no rename, move, content preview or storage administration. Silo does not use Garage's
+Admin API; storage permissions remain controlled by the operator.
 
 ## Before running Silo
 
@@ -167,13 +213,24 @@ server {
     server_name 192.168.1.20;
     ssl_certificate /etc/nginx/tls/silo.crt;
     ssl_certificate_key /etc/nginx/tls/silo.key;
+    client_max_body_size 100m;
     location / {
+        proxy_http_version 1.1;
+        proxy_request_buffering off;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+        client_body_timeout 300s;
         proxy_pass http://127.0.0.1:3000;
         proxy_set_header Host $host;
         proxy_buffering off;
     }
 }
 ```
+
+The 100 MiB body limit and 300-second inactivity timeouts match the upload envelope; Express
+additionally enforces an absolute five-minute deadline. Request buffering must remain disabled.
+Configure access logs to use `$uri` without arguments, or disable API access logging, so object keys
+in upload query strings are not recorded.
 
 The operator supplies a certificate with the actual IP in its SAN, protects its private key and
 installs the issuing CA in every client's trust store. Verify HTTPS without certificate warnings and

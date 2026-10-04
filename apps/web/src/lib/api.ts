@@ -3,6 +3,22 @@ let sessionGeneration = 0
 export function invalidateSessionRequests() {
   sessionGeneration++
 }
+export function sessionVersion() {
+  return sessionGeneration
+}
+export function expireSession() {
+  invalidateSessionRequests()
+  window.dispatchEvent(new Event("silo-session-expired"))
+}
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string
+  ) {
+    super(message)
+  }
+}
 
 export async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const generation = sessionGeneration
@@ -14,10 +30,13 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
     if (!path.startsWith("/auth/") && generation !== sessionGeneration)
       throw new DOMException("Session changed", "AbortError")
     if (response.status === 401 && !path.startsWith("/auth/")) {
-      invalidateSessionRequests()
-      window.dispatchEvent(new Event("silo-session-expired"))
+      expireSession()
     }
-    throw new Error(body?.error ?? "The request could not be completed")
+    throw new ApiError(
+      body?.error ?? "The request could not be completed",
+      response.status,
+      body?.code
+    )
   }
   const result = response.status === 204 ? undefined : await response.json()
   if (!path.startsWith("/auth/") && generation !== sessionGeneration)

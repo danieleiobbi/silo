@@ -1,8 +1,11 @@
+import { CreateDialog } from "../components/CreateDialog"
+import { useTransfers } from "../components/Transfers"
+import { destinationBase } from "../../../server/src/lib/write-validation"
 import { Toast } from "../components/Toast"
 import { DeleteDialog } from "../components/DeleteDialog"
 import { Details } from "../components/Details"
-import { useEffect, useState } from "react"
-import { Link, useParams, useSearchParams } from "react-router-dom"
+import { useEffect, useRef, useState } from "react"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { Folder, File, RefreshCw, Search, Trash2, ArrowLeft, ArrowRight } from "lucide-react"
 import { api } from "../lib/api"
 import { bucketUrl, objectsUrl } from "../lib/location"
@@ -21,6 +24,13 @@ export function ObjectsRoute() {
 }
 
 function Objects({ bucket, prefix }: { bucket: string; prefix: string }) {
+  const navigate = useNavigate()
+  const transfers = useTransfers()
+  const [creating, setCreating] = useState(false)
+  const [dragging, setDragging] = useState(false)
+  const depth = useRef(0)
+  const picker = useRef<HTMLInputElement>(null)
+  const seenRevision = useRef(transfers.revision)
   const [checked, setChecked] = useState<string[]>([])
   const [deleting, setDeleting] = useState<string[]>()
   const [notice, setNotice] = useState("")
@@ -58,6 +68,17 @@ function Objects({ bucket, prefix }: { bucket: string; prefix: string }) {
       })
     return () => abort.abort()
   }, [requestUrl, refresh, query])
+  useEffect(() => {
+    if (seenRevision.current === transfers.revision) return
+    seenRevision.current = transfers.revision
+    if (query || !transfers.dirty.has(JSON.stringify([bucket, prefix]))) return
+    setChecked([])
+    setListing(undefined)
+    setSelected(undefined)
+    setError("")
+    setTokens([undefined])
+    setRefresh(value => value + 1)
+  }, [transfers.revision, transfers.dirty, query, bucket, prefix])
   function reload() {
     setChecked([])
     setListing(undefined)
@@ -81,7 +102,82 @@ function Objects({ bucket, prefix }: { bucket: string; prefix: string }) {
   const segments = prefix.split("/")
   if (segments.at(-1) === "") segments.pop()
   return (
-    <main className='workspace'>
+    <main
+      className='workspace object-drop-workspace'
+      onDragEnter={event => {
+        if (event.dataTransfer.types.includes("Files")) {
+          event.preventDefault()
+          depth.current++
+          setDragging(true)
+        }
+      }}
+      onDragOver={event => {
+        if (event.dataTransfer.types.includes("Files")) {
+          event.preventDefault()
+          event.dataTransfer.dropEffect = query ? "none" : "copy"
+        }
+      }}
+      onDragLeave={() => {
+        depth.current = Math.max(0, depth.current - 1)
+        if (!depth.current) setDragging(false)
+      }}
+      onDrop={event => {
+        if (!event.dataTransfer.types.includes("Files")) return
+        event.preventDefault()
+        depth.current = 0
+        setDragging(false)
+        if (query) {
+          setNotice("Exit search to upload or create a folder")
+          return
+        }
+        transfers.add(
+          bucket,
+          prefix,
+          Array.from(event.dataTransfer.items)
+            .filter(item => item.kind === "file")
+            .map(item => {
+              const file = item.getAsFile()
+              const entry =
+                typeof item.webkitGetAsEntry === "function" ? item.webkitGetAsEntry() : null
+              if (!entry || !file || entry.isDirectory)
+                return {
+                  name: entry?.name ?? file?.name ?? "Dropped item",
+                  error: entry?.isDirectory
+                    ? "Directory upload is not supported"
+                    : "Unable to verify this dropped file. Use the file picker."
+                }
+              return { name: file.name, file }
+            })
+        )
+      }}
+    >
+      {dragging && (
+        <div className='drop-overlay'>
+          <strong>
+            {query ? "Exit search to upload or create a folder" : "Drop files to upload"}
+          </strong>
+          <span>
+            {bucket}/{destinationBase(prefix)}
+          </span>
+        </div>
+      )}
+      <input
+        ref={picker}
+        className='sr-only'
+        type='file'
+        multiple
+        tabIndex={-1}
+        aria-label='Choose files to upload'
+        onChange={event => {
+          if (!query)
+            transfers.add(
+              bucket,
+              prefix,
+              Array.from(event.target.files ?? []).map(file => ({ name: file.name, file }))
+            )
+          event.target.value = ""
+        }}
+      />
       <div className={selected !== undefined ? "object-layout with-details" : "object-layout"}>
         <section className='min-w-0'>
           <nav aria-label='Breadcrumb' className='breadcrumbs'>
@@ -103,11 +199,33 @@ function Objects({ bucket, prefix }: { bucket: string; prefix: string }) {
               <h1 className='truncate'>{segments.at(-1) || bucket}</h1>
               <p>Browse objects and inspect their details.</p>
             </div>
-            <button onClick={reload}>
-              <RefreshCw size={15} aria-hidden />
-              Refresh
-            </button>
+            <div className='flex flex-wrap gap-2'>
+              <button
+                className='button-primary'
+                disabled={Boolean(query)}
+                aria-describedby='write-destination'
+                onClick={() => picker.current?.click()}
+              >
+                Upload files
+              </button>
+              <button
+                disabled={Boolean(query)}
+                aria-describedby='write-destination'
+                onClick={() => setCreating(true)}
+              >
+                Create folder
+              </button>
+              <button onClick={reload}>
+                <RefreshCw size={15} aria-hidden />
+                Refresh
+              </button>
+            </div>
           </div>
+          <p id='write-destination' className='write-destination'>
+            {query
+              ? "Exit search to upload or create a folder"
+              : `Destination: ${bucket}/${destinationBase(prefix)}`}
+          </p>
           {notice && <Toast message={notice} onClose={() => setNotice("")} />}
           {selectedKeys.length > 0 && (
             <div className='selection-bar'>
@@ -332,6 +450,14 @@ function Objects({ bucket, prefix }: { bucket: string; prefix: string }) {
           />
         )}
       </div>
+      {creating && (
+        <CreateDialog
+          bucket={bucket}
+          prefix={prefix}
+          onClose={() => setCreating(false)}
+          onCreated={result => navigate(bucketUrl(bucket, result.prefix!))}
+        />
+      )}
       {deleting && (
         <DeleteDialog
           title={

@@ -4,12 +4,16 @@ export function DeleteDialog({
   title,
   keys,
   bucketName,
+  warning,
+  confirmLabel = "Delete",
   onConfirm,
   onClose
 }: {
   title: string
   keys?: string[]
   bucketName?: string
+  warning?: string
+  confirmLabel?: string
   onConfirm: () => Promise<void>
   onClose: () => void
 }) {
@@ -43,7 +47,8 @@ export function DeleteDialog({
         {title}
       </h2>
       <p id='delete-warning' className='my-4 text-sm'>
-        This action cannot be undone.{bucketName && " Only an empty bucket can be deleted."}
+        {warning ?? "This action cannot be undone."}
+        {bucketName && " Only an empty bucket can be deleted."}
       </p>
       {keys && (
         <ul className='mb-4 max-h-40 overflow-auto text-sm'>
@@ -95,7 +100,7 @@ export function DeleteDialog({
             className='button-danger'
             disabled={busy || (bucketName !== undefined && confirmation !== bucketName)}
           >
-            {busy ? "Deleting…" : "Delete"}
+            {busy ? "Working…" : confirmLabel}
           </button>
         </div>
       </form>

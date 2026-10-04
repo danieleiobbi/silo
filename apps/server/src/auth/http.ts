@@ -16,7 +16,7 @@ export function createAuth(config: ReturnType<typeof readEnv>["auth"], now = Dat
     const matches = cookies.filter(value => value.startsWith(`${cookieName}=`))
     return matches.length === 1 ? matches[0].slice(cookieName.length + 1) : undefined
   }
-  const mutation: RequestHandler = (request, response, next) => {
+  const requireOrigin: RequestHandler = (request, response, next) => {
     let origin: URL | undefined
     try {
       origin = new URL(request.get("origin") ?? "")
@@ -24,7 +24,6 @@ export function createAuth(config: ReturnType<typeof readEnv>["auth"], now = Dat
       // I reject absent and malformed origins without reflecting the supplied value.
     }
     if (
-      !request.is("application/json") ||
       request.get("sec-fetch-site") === "cross-site" ||
       !origin ||
       origin.origin !== config.publicOrigin ||
@@ -34,10 +33,17 @@ export function createAuth(config: ReturnType<typeof readEnv>["auth"], now = Dat
       origin.search ||
       origin.hash
     ) {
-      response.status(403).json({ error: "A same-origin JSON request is required" })
+      response.status(403).json({ error: "A same-origin request is required" })
       return
     }
     next()
+  }
+  const mutation: RequestHandler = (request, response, next) => {
+    if (!request.is("application/json")) {
+      response.status(403).json({ error: "A same-origin JSON request is required" })
+      return
+    }
+    requireOrigin(request, response, next)
   }
   const requireSession: RequestHandler = (request, response, next) => {
     if (!sessions.authenticate(token(request))) {
@@ -96,5 +102,5 @@ export function createAuth(config: ReturnType<typeof readEnv>["auth"], now = Dat
       verifying = false
     }
   })
-  return { routes, requireSession, mutation }
+  return { routes, requireSession, requireOrigin, mutation }
 }
