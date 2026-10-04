@@ -121,7 +121,7 @@ test("upload forwards an early chunk and pauses a large producer for slow storag
       return response
     }
   })
-  const done = writesController(s3).upload(
+  const done = writesController(s3, DEFAULT_MAX_UPLOAD_BYTES).upload(
     request as unknown as Request<{ bucket: string }>,
     response as unknown as Response
   )
@@ -160,7 +160,7 @@ test("deadline and client disconnect abort upstream and release admission", asyn
     })
     return { key: _key, size: _size }
   }
-  const controller = writesController(s3)
+  const controller = writesController(s3, DEFAULT_MAX_UPLOAD_BYTES)
   function attempt() {
     const request = Object.assign(new PassThrough(), {
       query: { key: "held", size: "1" },

@@ -6,13 +6,12 @@ import {
   keyError,
   nameError,
   newObjectKey,
-  DEFAULT_MAX_UPLOAD_BYTES,
   MAX_ACTIVE_UPLOADS,
   UPLOAD_DEADLINE_MS
 } from "../lib/write-validation.js"
 
 let activeUploads = 0
-export class UploadCounter extends Transform {
+class UploadCounter extends Transform {
   private received = 0
   constructor(private readonly expected: number) {
     super({ highWaterMark: 64 * 1024 })
@@ -36,7 +35,7 @@ export class UploadCounter extends Transform {
   }
 }
 
-export function writesController(s3: S3Service, maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES) {
+export function writesController(s3: S3Service, maxUploadBytes: number) {
   return {
     async folder(request: Request<{ bucket: string }>, response: Response) {
       const body = request.body as unknown
@@ -67,8 +66,7 @@ export function writesController(s3: S3Service, maxUploadBytes = DEFAULT_MAX_UPL
         typeof key !== "string" ||
         typeof rawSize !== "string" ||
         !/^\d+$/.test(rawSize) ||
-        !["false", "true"].includes(String(overwrite)) ||
-        typeof overwrite !== "string"
+        (overwrite !== "false" && overwrite !== "true")
       ) {
         response
           .status(400)

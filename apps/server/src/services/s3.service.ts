@@ -188,6 +188,7 @@ export function createS3Service(config: ReturnType<typeof readEnv>) {
       // include descendants, cap the work at 1,000 objects and 100 matches, and mark
       // results incomplete whenever either cap leaves objects unexamined.
       const objects: { key: string; size: number; modifiedAt?: Date }[] = []
+      const match = query.toLowerCase()
       let examined = 0
       let token: string | undefined
       do {
@@ -205,7 +206,7 @@ export function createS3Service(config: ReturnType<typeof readEnv>) {
           const item = contents[index]
           examined++
           const key = decodeKey(item.Key!, result.EncodingType)
-          if (key.toLowerCase().includes(query.toLowerCase()))
+          if (key.toLowerCase().includes(match))
             objects.push({ key, size: item.Size ?? 0, modifiedAt: item.LastModified })
           if (objects.length === 100 || examined === 1000)
             return {

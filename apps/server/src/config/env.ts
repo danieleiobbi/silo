@@ -1,4 +1,5 @@
 import { parsePasswordHash } from "../auth/password.js"
+import { DEFAULT_MAX_UPLOAD_BYTES } from "../lib/write-validation.js"
 
 export function readEnv(env = process.env) {
   for (const name of [
@@ -60,7 +61,7 @@ export function readEnv(env = process.env) {
   const port = Number(env.PORT)
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw new Error("PORT must be an integer between 1 and 65535")
-  const uploadMiB = env.SILO_UPLOAD_MAX_MIB ?? "100"
+  const uploadMiB = env.SILO_UPLOAD_MAX_MIB ?? String(DEFAULT_MAX_UPLOAD_BYTES / (1024 * 1024))
   if (!/^\d+$/.test(uploadMiB) || Number(uploadMiB) < 1 || Number(uploadMiB) > 4096)
     throw new Error("SILO_UPLOAD_MAX_MIB must be an integer between 1 and 4096")
   // I keep credentials in the server process and pass them explicitly to the SDK.
