@@ -230,12 +230,23 @@ export function App() {
           </Routes>
         </Transfers>
       )}
-      <footer className='app-version'>
-        <span>Silo {__APP_VERSION__}</span>
-        <time dateTime={__BUILD_DATE__} title={__BUILD_DATE__}>
-          Built {__BUILD_DATE__.slice(0, 10)} UTC
-        </time>
-      </footer>
+      {session && (
+        <footer className='workspace app-version'>
+          <div className='app-version-content'>
+            <span className='app-version-name'>Silo</span>
+            <span>Version {__APP_VERSION__}</span>
+            <time dateTime={__BUILD_DATE__} title={__BUILD_DATE__}>
+              Built{" "}
+              {new Intl.DateTimeFormat("en-GB", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+                timeZone: "UTC"
+              }).format(new Date(__BUILD_DATE__))}
+            </time>
+          </div>
+        </footer>
+      )}
     </BrowserRouter>
   )
 }

@@ -31,6 +31,11 @@
   --destructive: #ff9aae;
   --hover: #1b2b42;
 }
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
 @layer base {
   body {
     margin: 0;
@@ -215,7 +220,7 @@
 .login-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  min-height: calc(100svh - 76px);
+  flex: 1;
 }
 .login-intro {
   position: relative;
@@ -345,11 +350,12 @@
 }
 .session-loading {
   display: grid;
-  min-height: calc(100svh - 76px);
+  flex: 1;
   place-items: center;
   color: var(--muted);
 }
 .workspace {
+  width: 100%;
   max-width: 1500px;
   margin: 0 auto;
   padding: 40px 36px 64px;
@@ -716,7 +722,6 @@ tr[data-selected="true"] {
   }
   .login-layout {
     grid-template-columns: 1fr;
-    min-height: calc(100svh - 66px);
   }
   .login-intro {
     padding: 36px 24px;
@@ -792,12 +797,29 @@ tr[data-selected="true"] {
 }
 
 .app-version {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 8px 24px;
-  padding: 16px 24px;
+  margin-top: auto;
+  padding-top: 0;
+  padding-bottom: 24px;
   color: var(--muted);
   font-size: 12px;
+  line-height: 1.6;
+}
+#root:has(.buckets-workspace) .app-version {
+  max-width: 1240px;
+}
+.app-version-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
   overflow-wrap: anywhere;
+}
+.app-version-name {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.app-version time {
+  white-space: nowrap;
 }
