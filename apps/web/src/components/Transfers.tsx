@@ -211,7 +211,7 @@ export function Transfers({ children }: { children: ReactNode }) {
           ? "Destination is already retained in the queue"
           : undefined)
       if (next.length >= MAX_QUEUE_ENTRIES) {
-        rejected.push(`${candidate.name}: queue capacity is 100. Remove completed entries first.`)
+        rejected.push(`${candidate.name}: queue capacity is 100. Dismiss completed entries first.`)
         continue
       }
       next.push({
@@ -253,18 +253,18 @@ export function Transfers({ children }: { children: ReactNode }) {
         </div>
       )}
       {(entries.length > 0 || rejections.length > 0) && (
-        <section className='workspace transfer-workspace' aria-label='File transfers'>
+        <section className='workspace transfer-workspace' aria-label='File uploads'>
           <div className='data-surface transfer-panel'>
             <div className='surface-heading'>
-              <h2>Transfers</h2>
+              <h2>Uploads</h2>
               <span className='count-badge'>
                 {entries.filter(entry => entry.status === "uploaded").length}/{entries.length}{" "}
                 uploaded
               </span>
             </div>
             <p className='transfer-help'>
-              Existing files require overwrite confirmation. A different client can change a
-              destination after the check. Progress shows bytes sent; completion waits for storage.
+              Upload progress and results. Dismiss clears an entry from this list; the stored file
+              is kept.
             </p>
             {entries.map(entry => (
               <div className='transfer-row' key={entry.id}>
@@ -297,7 +297,7 @@ export function Transfers({ children }: { children: ReactNode }) {
                 </div>
                 <div className='transfer-actions'>
                   {running(entry) ? (
-                    <button onClick={() => cancel(entry)}>Cancel</button>
+                    <button onClick={() => cancel(entry)}>Cancel upload</button>
                   ) : (
                     <>
                       {entry.status === "conflict" && entry.file && (
@@ -327,11 +327,12 @@ export function Transfers({ children }: { children: ReactNode }) {
                         </button>
                       )}
                       <button
+                        aria-label={`Dismiss upload entry for ${entry.name}`}
                         onClick={() =>
                           setEntries(items => items.filter(item => item.id !== entry.id))
                         }
                       >
-                        Remove
+                        Dismiss
                       </button>
                     </>
                   )}
