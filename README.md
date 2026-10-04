@@ -181,10 +181,17 @@ repository.
 
 ## Use a published image with an existing Garage
 
-The `Publish release image` GitHub Actions workflow runs only when an annotated stable `vX.Y.Z` tag
-is pushed. Ordinary commits and branch pushes do not publish images. The tagged commit must belong
-to `main`. Type checks, lint, default tests, build, formatting and disposable Garage integration
-tests must pass before publication. No production credentials are needed by Actions.
+The `Publish release image` GitHub Actions workflow runs automatically when an annotated stable
+`vX.Y.Z` tag is pushed. Ordinary commits and branch pushes do not publish images. The tagged commit
+must belong to `main`. Type checks, lint, default tests, build, formatting and disposable Garage
+integration tests must pass before publication. No production credentials are needed by Actions.
+
+If GitHub did not start a run for a release tag, open **Actions → Publish release image → Run
+workflow** on `main` and enter the existing tag in `release_tag`, or run
+`gh workflow run release-image.yaml --ref main -f release_tag=v0.1.0`. The manual run checks out
+that exact annotated release, validates its format and membership in `main`, and runs the same
+checks before publishing. It cannot publish an arbitrary branch or untagged commit. Do not rerun a
+release that has already published successfully; use a new version for changes.
 
 Each release publishes `ghcr.io/danieleiobbi/silo:vX.Y.Z` for Linux AMD64 and ARM64. There is no
 floating `latest` tag: select an explicit release, or pin its digest for an immutable deployment.
