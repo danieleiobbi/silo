@@ -1,3 +1,4 @@
+import { assertIntegrationTarget } from "./integration-target"
 import assert from "node:assert/strict"
 import test from "node:test"
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
@@ -8,6 +9,7 @@ test(
   "production container complete S3 workflow",
   { skip: !process.env.SILO_TEST_URL },
   async () => {
+    assertIntegrationTarget()
     const base = process.env.SILO_TEST_URL!
     const config = readEnv()
     assert.equal((await fetch(base + "/api/buckets")).status, 401)

@@ -1,14 +1,14 @@
 services:
   silo:
-    image: silo:verification
-    container_name: silo-production-check
+    image: silo:integration
+    container_name: silo-integration
     environment:
-      S3_ENDPOINT: http://silo-garage-test:3900
-      SILO_PUBLIC_ORIGIN: http://127.0.0.1:3301
+      S3_ENDPOINT: http://silo-garage-integration:3900
+      SILO_PUBLIC_ORIGIN: http://127.0.0.1:3302
     networks:
-      - verification
+      - integration
 
 networks:
-  verification:
-    name: silo-verification
+  integration:
+    name: silo-integration
     external: true

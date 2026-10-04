@@ -1,3 +1,4 @@
+import { assertIntegrationTarget } from "./integration-target"
 import assert from "node:assert/strict"
 import { execFileSync, fork } from "node:child_process"
 import { once } from "node:events"
@@ -28,10 +29,11 @@ test(
   "Garage write compatibility release gate",
   { skip: !process.env.SILO_TEST_WRITES },
   async t => {
+    assertIntegrationTarget()
     const endpoint = process.env.S3_ENDPOINT
-    assert.ok(["http://127.0.0.1:3909", "http://127.0.0.1:3910"].includes(endpoint ?? ""))
+    assert.ok(["http://127.0.0.1:3911", "http://127.0.0.1:3910"].includes(endpoint ?? ""))
     const container =
-      endpoint === "http://127.0.0.1:3910" ? "silo-garage-write-test" : "silo-garage-test"
+      endpoint === "http://127.0.0.1:3910" ? "silo-garage-write-test" : "silo-garage-integration"
     assert.equal(process.env.S3_REGION, "garage")
     const suffix = randomBytes(8).toString("hex")
     const bucket = `silo-write-gate-${suffix}`

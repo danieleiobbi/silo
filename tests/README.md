@@ -3,86 +3,55 @@
 The default `npm test` suite needs no storage server. Garage/container tests are skipped unless
 explicitly enabled. They must run against disposable fixtures, never an application bucket.
 
-## Daily test workflow
+## Development and tests have independent data
 
-Start Docker, install dependencies once with `npm ci`, then use:
+Use `npm run dev:up` / `npm run dev:stop` for daily development on <http://127.0.0.1:3301>. Its
+Garage is `silo-garage-dev` on port 3909, app is `silo-development`, network is `silo-development`,
+and credentials are in `.env.development`. These resources are retained and never selected by the
+integration suite. The initial migration preserves the former shared environment's objects, S3
+credentials and administrator password. Development login uses `SILO_DEV_PASSWORD`; the development
+environment is not disposable test data.
 
-```sh
-npm run test:up
-```
+## Integration workflow
 
-Open **<http://127.0.0.1:3301>**. This is the single browser test address. The command creates the
-Garage fixture only when absent, otherwise starts and reuses it. It rebuilds Silo from the current
-working tree before updating the stateless app container. Uploaded objects and the existing
-administrator credentials remain intact. Sign in with the username and `SILO_TEST_PASSWORD` saved in
-the ignored `.env.silo-test`; never paste that file into logs or documentation.
-
-To change the per-file limit, set `SILO_UPLOAD_MAX_MIB=200` in `.env` and run `test:up` again. The
-default is 100 MiB; an explicit setting in `.env.silo-test` overrides `.env`. The browser shows the
-active server limit. Integration transport benchmarks still use fixed 100 MiB files.
-
-After changing the application, run `npm run test:up` again and refresh the browser. Restarting the
-app can require signing in again because sessions are process-local. There is no separate preview
-server or alternate browser port in this workflow. Garage port 3909 is only the SDK fixture
-endpoint. The fixture key has bucket-creation rights so the demo can exercise all three write
-capabilities. Production permissions are not changed.
+Start Docker, install dependencies with `npm ci`, then run:
 
 ```sh
 npm run test:integration
-npm run test:stop
 ```
 
-`test:integration` first updates the same app, restores only the named empty test bucket when
-missing, then runs all default, Garage, production and write-compatibility tests. It refuses to
-empty that bucket if it contains objects. Tests mutate documented fixture keys and their own
-randomly named resources; do not put personal objects at those reserved fixture keys. `test:stop`
-stops the app and Garage without removing containers, data, network or credentials. The next
-`test:up` reuses them. `npm test` remains the fast suite that requires no Docker.
+The command prepares/reuses `silo-garage-integration` (Garage 2.1.0, loopback 3911), builds
+`silo-integration` from the current source, starts it on loopback 3302, runs all default and opt-in
+suites, then stops both integration containers, including when a test fails. Tests share only their
+own `silo-integration` network. Development stays running. Integration data and credentials are
+retained for the next run; the command recreates only `silo-empty-check` when missing and refuses to
+empty it if it contains objects.
 
-The app is managed by `compose.yaml` plus `compose.test.yaml`, under project `silo-verification`.
-The wrapper verifies container image, loopback port and absence of mounts before reuse. On the first
-run it adopts only the documented legacy stateless app; the existing Garage container is preserved.
-The test overlay is separate from production Compose. Do not run it against user storage.
+The ignored owner-readable `.env.silo-test` contains independent generated credentials and
+`SILO_ENVIRONMENT=integration`. Tests create, overwrite and delete documented fixture keys and
+random temporary buckets. Personal development objects belong only in development storage.
+`assertIntegrationTarget` rejects development settings/endpoints before integration mutations. The
+wrapper additionally validates container image, loopback ports and absence of mounts before reuse.
+Never repoint the reserved integration ports at user storage or modify the profile marker.
+
+There are no `test:up` / `test:stop` aliases. `npm test` executes the fast suite without Docker;
+`dev:up` starts the app for development and executes no tests.
 
 ## Advanced fixture preparation
 
-The following lower-level commands are for fixture diagnosis and compatibility experiments. They are
-unnecessary for the daily workflow above.
-
-Install dependencies with `npm ci`. Start Docker, then run from the repository root:
+For low-level diagnosis, run from the root:
 
 ```sh
-node --import tsx tests/prepare-garage.ts
-```
-
-This script creates only `silo-garage-test` using Garage 2.1.0, bound to loopback port 3909. It
-creates a single-node test layout, a fresh random S3 key, `silo-fixture` and `silo-empty-check`. It
-seeds 61 paginated objects, nested prefixes, special-character keys and a folder marker. Credentials
-are saved to the ignored `.env.silo-test` file, not printed. Test data lives in the disposable
-container; there are no host-mounted data volumes.
-
-Fresh fixtures generate a random administrator password and hash in the protected ignored
-`.env.silo-test`. Never print this file or copy its secrets into verification records. Existing
-fixtures created before authentication need generated authentication settings before reuse.
-
-The script refuses an existing container with that name. This prevents an implicit reset. For
-another clean run, explicitly remove your previous fixture container first:
-
-```sh
-docker rm -f silo-garage-test
-node --import tsx tests/prepare-garage.ts
-```
-
-Run the Garage tests:
-
-```sh
+node --import tsx scripts/prepare-garage.ts integration
 SILO_TEST_GARAGE=1 node --env-file=.env.silo-test --import tsx --test tests/garage.test.ts
 ```
 
-These tests verify real listing, token pagination, metadata, streaming, recursive search and exact
-object deletion. They include a carriage-return key beside its normalized neighbor to ensure the
-wrong object cannot be deleted. They create/delete only named fixture keys and refuse to delete the
-non-empty fixture bucket.
+Preparation refuses an existing container or credential file; it never overwrites saved data or
+secrets. It creates a single-node Garage layout, one S3 key, `silo-fixture`, `silo-empty-check`, 61
+pagination objects, nested prefixes, unusual keys and a folder marker. The administrator is `admin`,
+with a generated password in `SILO_TEST_PASSWORD`. A normal integration run starts existing
+resources automatically. Low-level checks require the integration Garage to be running; start only
+that verified container with `docker start silo-garage-integration` when needed.
 
 ## Write compatibility gate
 
@@ -110,7 +79,7 @@ SILO_TEST_WRITES=1 node --env-file=.env.silo-test --import tsx \
 To check Garage 2.4.1 independently without upgrading or removing the existing fixture:
 
 ```sh
-node --import tsx tests/prepare-garage.ts --write-compatibility
+node --import tsx scripts/prepare-garage.ts write-compatibility
 SILO_TEST_WRITES=1 node --env-file=.env.silo-write-test --import tsx \
   --test tests/write-compatibility.test.ts
 ```
@@ -153,7 +122,7 @@ rm .env.silo-write-test
 
 ## Verify the production image
 
-Use `npm run test:integration`. The wrapper builds the production image and starts it on 3301, then
+Use `npm run test:integration`. The wrapper builds the production image and starts it on 3302, then
 exercises published HTTP endpoints, SPA deep links, actual SDK credentials being absent from the
 frontend bundle and the complete storage workflow. The production check deletes the dedicated
 `silo-empty-check` bucket; the next run recreates it with the fixture key's ownership. No manual
@@ -164,7 +133,8 @@ buffering would time out. HTTP tests also need permission to bind ephemeral loop
 
 ## Manual UI checks
 
-Use the production container and only these disposable fixtures:
+Use the development app for everyday visual checks. Use only the isolated integration resources for
+destructive regression checks. On the integration fixtures:
 
 - Open nested prefixes; use breadcrumbs, Back, Forward and browser refresh.
 - Open the unusual-character prefix and confirm the full key in details and Copy key.
@@ -182,19 +152,19 @@ fields, network failures and late responses. Production needs separate evidence 
 proxy, a trusted IP certificate, Secure cookies and an unreachable direct backend LAN port. Loopback
 HTTP tests do not establish this deployment boundary.
 
-## Stop or deliberately remove the fixtures
+## Deliberate integration reset
 
-Use `npm run test:stop` to finish a test session while retaining everything for next time. Removing
-Garage destroys uploaded test objects. Only for a deliberate fresh-fixture reset, after checking
-that its contents are disposable, remove these known resources:
+Integration containers stop automatically after the suite. Their data is disposable; removing Garage
+destroys it. Only for a deliberate reset after verifying ownership:
 
 ```sh
-docker rm -f silo-production-check silo-garage-test
-docker network rm silo-verification
+docker rm -f silo-integration silo-garage-integration
+docker network rm silo-integration
 rm .env.silo-test
 ```
 
-Then `npm run test:up` prepares fresh data and credentials. Ordinary updates never run this reset.
+The next `npm run test:integration` creates fresh fixtures. These names never identify development
+resources. Use `npm run dev:stop` to stop development while preserving its data and password.
 
 ## Git versioning checks
 
@@ -203,10 +173,17 @@ verifies conventional bumps, annotated stable tag selection, exact/dirty/ahead m
 overrides, invalid dates, release dry-run invariants, decreasing/prerelease rejection,
 branch/dirty-worktree checks, and deployment source isolation with a recording Docker substitute.
 Fixture commits and tags never touch the application repository. The substitute checks command
-sequencing and archived source; it does not prove Docker image startup. `npm run test:up` covers the
+sequencing and archived source; it does not prove Docker image startup. `npm run dev:up` covers the
 real image build and health check.
 
-For manual checks, inspect the footer in the test app: version and UTC build date should remain
-legible in both themes and at narrow widths. For a tagged build, supply a stable version as a build
-argument and verify the served bundle contains that exact value. Runtime environment changes alone
-must not alter it.
+For manual checks, inspect the footer in the development app: version and UTC build date should
+remain legible in both themes and at narrow widths. For a tagged build, supply a stable version as a
+build argument and verify the served bundle contains that exact value. Runtime environment changes
+alone must not alter it.
+
+## Environment isolation checks
+
+`tests/local-environment.test.ts` verifies separate storage/app/network/credential settings and
+rejects development storage, a development app URL and missing test credentials. Integration entry
+points validate the profile before accessing storage. The shared local runner and preparation code
+live in `scripts/`; `compose.dev.yaml` and `compose.test.yaml` declare independent resources.

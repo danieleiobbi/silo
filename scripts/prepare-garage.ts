@@ -1,25 +1,26 @@
+import { localEnvironments, type LocalEnvironment } from "./local-settings"
 import { execFileSync } from "node:child_process"
 import { randomBytes } from "node:crypto"
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, writeFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { setTimeout } from "node:timers/promises"
 import { S3Client, PutObjectCommand, ListBucketsCommand } from "@aws-sdk/client-s3"
-import { hashPassword } from "../apps/server/src/auth/password.ts"
+import { hashPassword } from "../apps/server/src/auth/password"
 
-// I create a dedicated disposable Garage, not a connection to an existing deployment.
+// I prepare an isolated local Garage for the selected development or test environment.
 // I refuse an existing container name instead of resetting someone else's test data.
-const writeCompatibility = process.argv.includes("--write-compatibility")
-const container = writeCompatibility ? "silo-garage-write-test" : "silo-garage-test"
-const image = writeCompatibility ? "dxflrs/garage:v2.4.1" : "dxflrs/garage:v2.1.0"
-const port = writeCompatibility ? 3910 : 3909
-const envFile = writeCompatibility ? ".env.silo-write-test" : ".env.silo-test"
+const profile = process.argv[2] as LocalEnvironment
+if (!Object.hasOwn(localEnvironments, profile) || process.argv.length !== 3)
+  throw new Error("Use development, integration or write-compatibility")
+const settings = localEnvironments[profile]
+const { garage: container, image, garagePort: port, envFile } = settings
 function docker(...args: string[]) {
   try {
     return execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
   } catch {
     // I omit command arguments and output because key-import arguments contain fixture secrets.
-    throw new Error(`Docker ${args[0]} failed; inspect the isolated fixture container`)
+    throw new Error(`Docker ${args[0]} failed; inspect the isolated local container`)
   }
 }
 const existing = docker("ps", "-a", "--filter", `name=^/${container}$`, "--format", "{{.Names}}")
@@ -27,6 +28,8 @@ if (existing.trim())
   throw new Error(
     `${container} already exists; remove it explicitly before preparing fresh fixtures`
   )
+if (existsSync(envFile))
+  throw new Error(`${envFile} already exists; I never overwrite saved credentials`)
 const accessKeyId = `GK${randomBytes(12).toString("hex")}`
 const secretAccessKey = randomBytes(32).toString("hex")
 const directory = mkdtempSync(join(tmpdir(), "silo-garage-"))
@@ -64,7 +67,9 @@ api_bind_addr = "[::]:3900"
   garage("layout", "assign", nodeId, "-z", "test", "-c", "1G")
   garage("layout", "apply", "--version", "1")
   garage("key", "import", accessKeyId, secretAccessKey, "--yes", "-n", "silo-test")
-  for (const bucket of ["silo-fixture", "silo-empty-check"]) {
+  for (const bucket of profile === "development"
+    ? ["silo-fixture"]
+    : ["silo-fixture", "silo-empty-check"]) {
     garage("bucket", "create", bucket)
     garage("bucket", "allow", "--read", "--write", "--owner", bucket, "--key", accessKeyId)
   }
@@ -92,7 +97,7 @@ api_bind_addr = "[::]:3900"
         Key: `pages/file-${String(index).padStart(3, "0")}.txt`,
         Body: `fixture ${index}`,
         ContentType: "text/plain",
-        Metadata: { source: "silo-test" }
+        Metadata: { source: profile === "development" ? "silo-development" : "silo-test" }
       })
     )
   }
@@ -110,10 +115,10 @@ api_bind_addr = "[::]:3900"
   const passwordHash = await hashPassword(password)
   writeFileSync(
     envFile,
-    `S3_ENDPOINT=http://127.0.0.1:${port}\nS3_REGION=garage\nS3_ACCESS_KEY_ID=${accessKeyId}\nS3_SECRET_ACCESS_KEY=${secretAccessKey}\nPORT=3000\nSILO_ADMIN_USERNAME=admin\nSILO_ADMIN_PASSWORD_HASH=${passwordHash}\nSILO_PUBLIC_ORIGIN=http://127.0.0.1:3301\nSILO_TEST_PASSWORD=${password}\n`,
+    `S3_ENDPOINT=http://127.0.0.1:${port}\nS3_REGION=garage\nS3_ACCESS_KEY_ID=${accessKeyId}\nS3_SECRET_ACCESS_KEY=${secretAccessKey}\nPORT=3000\nSILO_ADMIN_USERNAME=admin\nSILO_ADMIN_PASSWORD_HASH=${passwordHash}\nSILO_PUBLIC_ORIGIN=http://127.0.0.1:${settings.appPort}\nSILO_ENVIRONMENT=${profile}\n${settings.passwordVariable}=${password}\n`,
     { mode: 0o600 }
   )
-  console.info(`Garage fixtures ready on 127.0.0.1:${port}; credentials saved to ${envFile}`)
+  console.info(`Garage ${profile} ready on 127.0.0.1:${port}; credentials saved to ${envFile}`)
 } finally {
   rmSync(directory, { recursive: true, force: true })
 }

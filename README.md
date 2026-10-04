@@ -66,19 +66,42 @@ Proxy access logs must not record upload query strings containing keys.
 There is no rename, move, content preview or storage administration. Silo does not use Garage's
 Admin API; storage permissions remain controlled by the operator.
 
-## Try the current application locally
+## Develop locally
 
 With Docker running and dependencies installed using `npm ci`:
 
 ```sh
-npm run test:up
+npm run dev:up
 ```
 
-Open **<http://127.0.0.1:3301>**. Run the same command after code changes to rebuild and update the
-app. The disposable Garage data and existing credentials are retained; login settings are in the
-ignored `.env.silo-test`. `npm run test:stop` stops the environment without deleting data, and
-`npm run test:integration` updates it and runs the complete integration suite. See
-[the test workflow](tests/README.md) for reserved fixture keys and advanced checks.
+Open **<http://127.0.0.1:3301>**. Repeat the command after code changes to rebuild the app.
+Development storage and credentials are retained across updates. Login with `admin` and the
+`SILO_DEV_PASSWORD` in the ignored, owner-readable `.env.development`. `npm run dev:stop` stops the
+development app and Garage without deleting either or their data.
+
+The first run migrates the former shared test/development environment: it renames the verified
+Garage container and moves `.env.silo-test` to `.env.development`, preserving storage credentials,
+the administrator password and objects. It replaces only the verified stateless app after building
+its new image. The browser address remains unchanged. Subsequent integration runs create their own
+`.env.silo-test` with independent credentials.
+
+For faster source updates, use `npm run dev:web` and `npm run dev:server` in separate terminals. The
+server command loads `.env.development`; set `SILO_PUBLIC_ORIGIN=http://127.0.0.1:5173` when
+starting it for the Vite browser on that origin. Development Garage remains on loopback port 3909.
+
+## Run tests
+
+```sh
+npm test
+npm run test:integration
+```
+
+`npm test` runs the fast suite without Garage. `test:integration` builds a separate production
+container on loopback port 3302, prepares/reuses isolated Garage on port 3911, runs the full suite,
+and stops only the integration app and storage afterward. Integration settings are in
+`.env.silo-test`; tests never use `.env.development`. Development remains available on port 3301.
+The integration storage contains disposable fixtures and can be mutated by tests. See
+[the integration workflow](tests/README.md) for its boundaries and low-level checks.
 
 ## Before running Silo
 
@@ -107,9 +130,9 @@ Untracked files do not affect Git describe. Builds without Git metadata use `unk
 variables contain public build information only, never credentials.
 
 Use `npm run docker:up` to build and start the current checkout with host-generated metadata.
-`npm run docker:build` only builds. `npm run test:up` also injects these values into the disposable
-test image. Plain Compose and direct Docker builds remain supported, but require explicit build
-arguments for a known version because `.git` is excluded from the image:
+`npm run docker:build` only builds. `npm run dev:up` also injects these values into the local
+development image. Plain Compose and direct Docker builds remain supported, but require explicit
+build arguments for a known version because `.git` is excluded from the image:
 
 ```sh
 VITE_APP_VERSION="$(git describe --always --dirty)" \
@@ -217,9 +240,10 @@ server startup. The upper bound is a conservative 4 GiB for the single-PUT trans
 enable multipart uploads. Storage limits and the absolute five-minute transfer deadline still apply.
 [AWS documents the single-PUT limit](https://docs.aws.amazon.com/AmazonS3/latest/userguide/upload-objects.html).
 
-For the local test environment, edit the same setting in `.env` and run `npm run test:up`. An
-explicit value in `.env.silo-test` takes precedence. The wrapper shares only this upload setting
-from `.env`, preserving the isolated fixture credentials.
+For local development, set the limit in `.env.development` and run `npm run dev:up`. An explicit
+value there takes precedence over the optional upload limit in `.env`; no other operator settings or
+credentials are copied from `.env`. Integration reads its own limit from `.env.silo-test` and
+defaults independently to 100 MiB.
 
 The server validates configuration before listening and exits non-zero for missing or invalid
 values. It uses path-style S3 addressing internally. There is no `S3_BUCKET_NAME`, provider switch

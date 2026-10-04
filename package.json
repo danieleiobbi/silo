@@ -9,20 +9,20 @@
   },
   "scripts": {
     "auth:hash-password": "node --import tsx apps/server/src/auth/hash-password.ts",
-    "dev:web": "npm run dev -w apps/web",
-    "dev:server": "npm run dev -w apps/server",
+    "dev:web": "npm run dev -w apps/web --",
+    "dev:server": "node --env-file=.env.development --import tsx --watch apps/server/src/index.ts",
     "build": "npm run build --workspaces",
     "check": "npm run check --workspaces && tsc -p scripts/tsconfig.json && eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "start": "npm start -w apps/server",
     "test": "node --import tsx --test tests/*.test.ts",
-    "test:up": "node --import tsx tests/environment.ts up",
-    "test:stop": "node --import tsx tests/environment.ts stop",
-    "test:integration": "node --import tsx tests/environment.ts verify",
+    "test:integration": "node --import tsx scripts/environment.ts integration verify",
     "docker:build": "node --import tsx scripts/docker.ts build",
     "docker:up": "node --import tsx scripts/docker.ts up",
-    "deploy": "node --import tsx scripts/docker.ts deploy"
+    "deploy": "node --import tsx scripts/docker.ts deploy",
+    "dev:up": "node --import tsx scripts/environment.ts development up",
+    "dev:stop": "node --import tsx scripts/environment.ts development stop"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

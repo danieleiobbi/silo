@@ -1,0 +1,14 @@
+services:
+  silo:
+    image: silo:development
+    container_name: silo-development
+    environment:
+      S3_ENDPOINT: http://silo-garage-dev:3900
+      SILO_PUBLIC_ORIGIN: http://127.0.0.1:3301
+    networks:
+      - development
+
+networks:
+  development:
+    name: silo-development
+    external: true

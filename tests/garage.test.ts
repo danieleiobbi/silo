@@ -1,3 +1,4 @@
+import { assertIntegrationTarget } from "./integration-target"
 import assert from "node:assert/strict"
 import test from "node:test"
 import { createS3Service } from "../apps/server/src/services/s3.service.ts"
@@ -9,6 +10,7 @@ test(
   "Garage preserves prefixes and opaque pagination",
   { skip: !process.env.SILO_TEST_GARAGE },
   async () => {
+    assertIntegrationTarget()
     const service = createS3Service(readEnv())
     const root = await service.listObjects("silo-fixture", "", 25)
     assert.ok(root.prefixes.includes("nested/"))
@@ -31,6 +33,7 @@ test(
   "Garage metadata and streamed HTTP download",
   { skip: !process.env.SILO_TEST_GARAGE },
   async () => {
+    assertIntegrationTarget()
     const { createApp } = await import("../apps/server/src/app.ts")
     const service = createS3Service(readEnv())
     const details = await service.details("silo-fixture", "pages/file-000.txt")
@@ -63,6 +66,7 @@ test(
   "Garage search and exact object deletion",
   { skip: !process.env.SILO_TEST_GARAGE },
   async () => {
+    assertIntegrationTarget()
     const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3")
     const config = readEnv()
     const client = new S3Client({ ...config, forcePathStyle: true })
@@ -87,6 +91,7 @@ test(
   "Garage retains control characters without deleting a normalized key",
   { skip: !process.env.SILO_TEST_GARAGE },
   async () => {
+    assertIntegrationTarget()
     const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3")
     const config = readEnv()
     const client = new S3Client({ ...config, forcePathStyle: true })
