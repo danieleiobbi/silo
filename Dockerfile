@@ -1,4 +1,6 @@
-FROM node:22-alpine AS build
+# I compile portable JavaScript and frontend assets on the builder's native platform
+# to avoid slow emulation; I install runtime dependencies on each target platform below.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/server/package.json apps/server/package.json

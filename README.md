@@ -195,7 +195,11 @@ release that has already published successfully; use a new version for changes.
 
 Each release publishes `ghcr.io/danieleiobbi/silo:vX.Y.Z` for Linux AMD64 and ARM64. There is no
 floating `latest` tag: select an explicit release, or pin its digest for an immutable deployment.
-The workflow publishes an image, not a deployment, and does not contact your production Garage. The
+Source image builds require BuildKit (Docker Buildx or current Docker Compose). The compilation
+stage uses the builder's native platform because its JavaScript and frontend output is portable;
+runtime dependencies are installed separately for each target architecture. This avoids running the
+frontend build and development dependency installation under ARM64 emulation on AMD64 runners. The
+workflow publishes an image, not a deployment, and does not contact your production Garage. The
 first image will become available only after this workflow is committed and a release tag is pushed
 successfully. GHCR packages are initially private; the package owner must set package visibility to
 public to allow unauthenticated pulls, or consumers must authenticate to GHCR with a token that has
