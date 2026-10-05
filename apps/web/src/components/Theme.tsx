@@ -24,7 +24,8 @@ export function Theme() {
   }, [dark])
   return (
     <button
-      className='flex items-center gap-2 text-sm font-normal'
+      className='button-quiet'
+      type='button'
       aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
       onClick={() => {
         const value = dark ? "light" : "dark"
